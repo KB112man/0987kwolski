@@ -1,0 +1,6 @@
+{
+  "name": "ULTIMATE RUMMAY!",
+  "description": "A premier 7-level Contract Rummy card game featuring 108 cards, wild Jokers, Books, Runs, and an authentic wooden tabletop setup.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
