@@ -1,0 +1,1 @@
+sed -i 's/val layoffCard by viewModel.showLayoffDestinationDialog.collectAsState()/val isLayoffDialogOpen by viewModel.isLayoffDialogOpen.collectAsState()/g' app/src/main/java/com/example/ui/screens/GameScreen.kt

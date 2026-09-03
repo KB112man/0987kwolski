@@ -46,7 +46,7 @@ fun GameScreen(
     val showHistoryDialog by viewModel.showHistoryDialog.collectAsState()
     val matchHistory by viewModel.matchHistory.collectAsState()
     val showMeldBuilder by viewModel.showMeldBuilder.collectAsState()
-    val layoffCard by viewModel.showLayoffDestinationDialog.collectAsState()
+    val isLayoffDialogOpen by viewModel.isLayoffDialogOpen.collectAsState()
     val pendingJokerReplacement by viewModel.pendingJokerReplacement.collectAsState()
     val activeRummayCall by viewModel.activeRummayCall.collectAsState()
     val roundWinner by viewModel.roundWinner.collectAsState()
@@ -112,21 +112,30 @@ fun GameScreen(
             // Status notification bar
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .padding(vertical = 1.dp),
-                color = Color(0x33000000),
+                    .fillMaxWidth(0.95f)
+                    .padding(vertical = 4.dp),
+                color = Color(0xAA000000), // Darker translucent background to match reference
                 shape = RoundedCornerShape(10.dp),
                 border = androidx.compose.foundation.BorderStroke(0.75.dp, Color(0x33FFFFFF))
             ) {
-                Text(
-                    text = currentGameState.statusMessage,
-                    color = Color(0xFFF1F5F9),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                    maxLines = 1
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = currentGameState.statusMessage,
+                        color = Color(0xFFF1F5F9),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1
+                    )
+                    
+                    com.example.ui.components.DotActivityIndicator()
+                }
             }
 
             // 2. TOP OPPONENT (e.g. Wicked Gremlin) + Melds directly below rack!
@@ -520,13 +529,18 @@ fun GameScreen(
         }
 
         // Layoff Destination Selection Dialog
-        if (layoffCard != null && humanPlayer != null) {
+        if (isLayoffDialogOpen && humanPlayer != null) {
+            val layoffCardId = selectedCardIds.firstOrNull()
+            val layoffCard = if (selectedCardIds.size == 1 && layoffCardId != null) humanPlayer.hand.find { it.id == layoffCardId } else null
+
             LayoffDestinationDialog(
-                selectedCard = layoffCard!!,
+                selectedCard = layoffCard,
                 player = humanPlayer,
                 allTableMelds = currentGameState.allTableMelds,
                 onSelectDestination = { meldId ->
-                    viewModel.onLayoffToMeld(meldId, layoffCard!!)
+                    if (layoffCard != null) {
+                        viewModel.onLayoffToMeld(meldId, layoffCard)
+                    }
                 },
                 onDismiss = { viewModel.dismissLayoffDialog() }
             )

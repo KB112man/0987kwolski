@@ -206,7 +206,7 @@ fun PlayerWoodenCardRack(
             }
 
             // 2. PLAY ON
-            val canPlayOn = player.isDown && isPlayerTurn && isPlayOrDiscardPhase && selectedCardIds.size == 1
+            val canPlayOn = isPlayerTurn && isPlayOrDiscardPhase
             Surface(
                 modifier = Modifier
                     .weight(1f)

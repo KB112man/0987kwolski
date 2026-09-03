@@ -12,7 +12,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,16 +34,40 @@ import com.example.ui.theme.*
 
 @Composable
 fun LayoffDestinationDialog(
-    selectedCard: Card,
+    selectedCard: Card?,
     player: Player,
     allTableMelds: List<Meld>,
     onSelectDestination: (meldId: String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var showNotDownNotice by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
     val myMelds = allTableMelds.filter { it.ownerId == player.id }
     val opponentMelds = allTableMelds.filter { it.ownerId != player.id }
-    val legalMelds = allTableMelds.filter { it.canAddCard(selectedCard) }
+    val legalMelds = if (selectedCard != null) allTableMelds.filter { it.canAddCard(selectedCard) } else emptyList()
+
+    if (showNotDownNotice) {
+        AlertDialog(
+            onDismissRequest = { showNotDownNotice = false },
+            title = {
+                Text(text = "YOU MUST GO DOWN FIRST", color = Color(0xFFEF4444), fontWeight = FontWeight.Black)
+            },
+            text = {
+                Text(
+                    text = "You can view table melds, but you cannot Play On until you complete your contract.",
+                    color = Color.White
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showNotDownNotice = false }) {
+                    Text("OK", color = GoldPlaqueText, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = ModalSurface,
+            titleContentColor = Color(0xFFEF4444),
+            textContentColor = Color.White
+        )
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -103,53 +127,73 @@ fun LayoffDestinationDialog(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Card preview
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(4.dp, RoundedCornerShape(8.dp)),
-                    color = Color(0xFF140802),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPlaqueBorder.copy(alpha = 0.5f))
-                ) {
-                    Row(
+                if (selectedCard != null) {
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            .shadow(4.dp, RoundedCornerShape(8.dp)),
+                        color = Color(0xFF140802),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPlaqueBorder.copy(alpha = 0.5f))
                     ) {
-                        PlayingCardView(
-                            card = selectedCard,
-                            cardWidth = 48.dp,
-                            cardHeight = 68.dp,
-                            showPointsBadge = true
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Selected Card: ${selectedCard.displayName}",
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Black
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            PlayingCardView(
+                                card = selectedCard,
+                                cardWidth = 48.dp,
+                                cardHeight = 68.dp,
+                                showPointsBadge = true
                             )
-                            Text(
-                                text = "Select the specific Book or Run below to play this card onto.",
-                                color = TextSecondary,
-                                fontSize = 10.sp,
-                                lineHeight = 13.sp
-                            )
-                            if (legalMelds.isNotEmpty()) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "✓ ${legalMelds.size} legal destination(s) available on table",
-                                    color = EmeraldAccentLight,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(top = 2.dp)
+                                    text = "Selected Card: ${selectedCard.displayName}",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black
                                 )
+                                Text(
+                                    text = "Select the specific Book or Run below to play this card onto.",
+                                    color = TextSecondary,
+                                    fontSize = 10.sp,
+                                    lineHeight = 13.sp
+                                )
+                                if (legalMelds.isNotEmpty()) {
+                                    Text(
+                                        text = "✓ ${legalMelds.size} legal destination(s) available on table",
+                                        color = EmeraldAccentLight,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
+                } else {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        color = Color(0xFF181310),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3D2111))
+                    ) {
+                        Text(
+                            text = "No card selected. You are in View Mode.",
+                            color = Color(0xFFFFB4B4),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
 
                 if (allTableMelds.isEmpty()) {
                     Surface(
@@ -170,7 +214,7 @@ fun LayoffDestinationDialog(
                     }
                 }
 
-                if (allTableMelds.isNotEmpty() && legalMelds.isEmpty()) {
+                if (allTableMelds.isNotEmpty() && legalMelds.isEmpty() && selectedCard != null) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -197,8 +241,12 @@ fun LayoffDestinationDialog(
                         melds = myMelds,
                         selectedCard = selectedCard,
                         onSelectDestination = { meldId ->
-                            onSelectDestination(meldId)
-                            onDismiss()
+                            if (!player.isDown) {
+                                showNotDownNotice = true
+                            } else {
+                                onSelectDestination(meldId)
+                                onDismiss()
+                            }
                         }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -211,8 +259,12 @@ fun LayoffDestinationDialog(
                         melds = opponentMelds,
                         selectedCard = selectedCard,
                         onSelectDestination = { meldId ->
-                            onSelectDestination(meldId)
-                            onDismiss()
+                            if (!player.isDown) {
+                                showNotDownNotice = true
+                            } else {
+                                onSelectDestination(meldId)
+                                onDismiss()
+                            }
                         }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -239,7 +291,7 @@ fun LayoffDestinationDialog(
 private fun MeldDestinationSection(
     title: String,
     melds: List<Meld>,
-    selectedCard: Card,
+    selectedCard: Card?,
     onSelectDestination: (meldId: String) -> Unit
 ) {
     Column(
@@ -255,8 +307,8 @@ private fun MeldDestinationSection(
         )
 
         melds.forEach { meld ->
-            val isLegal = meld.canAddCard(selectedCard)
-            val rejectionReason = meld.getPlayOnRejectionReason(selectedCard)
+            val isLegal = selectedCard != null && meld.canAddCard(selectedCard)
+            val rejectionReason = if (selectedCard == null) "Select a card to play" else meld.getPlayOnRejectionReason(selectedCard)
             val typeTitle = if (meld.type == MeldType.BOOK) "Book" else "Run"
 
             Surface(

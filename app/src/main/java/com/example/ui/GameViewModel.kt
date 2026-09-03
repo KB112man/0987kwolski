@@ -50,8 +50,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _showMeldBuilder = MutableStateFlow(false)
     val showMeldBuilder: StateFlow<Boolean> = _showMeldBuilder.asStateFlow()
 
-    private val _showLayoffDestinationDialog = MutableStateFlow<Card?>(null)
-    val showLayoffDestinationDialog: StateFlow<Card?> = _showLayoffDestinationDialog.asStateFlow()
+    private val _isLayoffDialogOpen = MutableStateFlow(false)
+    val isLayoffDialogOpen: StateFlow<Boolean> = _isLayoffDialogOpen.asStateFlow()
 
     private val _pendingJokerReplacement = MutableStateFlow<JokerReplacementState?>(null)
     val pendingJokerReplacement: StateFlow<JokerReplacementState?> = _pendingJokerReplacement.asStateFlow()
@@ -189,35 +189,73 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun onHumanPassBuy() {
         val state = _gameState.value ?: return
         val currentBuyState = state.pendingBuyPriority ?: return
-        val remainingContenders = currentBuyState.eligibleContenderIds.filter { it != state.humanPlayer?.id }
+        
+        if (currentBuyState.eligibleContenderIds.firstOrNull() == state.humanPlayer?.id) {
+            val afterPass = state.copy(
+                pendingBuyPriority = currentBuyState.copy(
+                    interestedBuyerIds = currentBuyState.eligibleContenderIds.drop(1)
+                )
+            )
+            _gameState.value = afterPass
+            persistState(afterPass)
+            processBuyPrioritySequence()
+        }
+    }
 
-        if (remainingContenders.isNotEmpty()) {
-            val nextContenderId = remainingContenders.first()
-            val nextContender = state.players.find { it.id == nextContenderId }
-            if (nextContender != null && !nextContender.isHuman) {
-                val wantsBuy = AiPlayerEngine.shouldAiBuyDiscard(nextContender, currentBuyState.discardCard, state.contractLevel, state.allTableMelds)
-                if (wantsBuy) {
-                    val (boughtState, _) = DeckEngine.buyDiscard(state, nextContenderId)
-                    val afterBuy = boughtState.copy(
-                        pendingBuyPriority = null,
-                        statusMessage = "${nextContender.name} bought ${currentBuyState.discardCard.displayName}."
-                    )
-                    _gameState.value = afterBuy
-                    persistState(afterBuy)
-                    checkTurnState()
-                    return
-                }
-            }
+    private fun processBuyPrioritySequence() {
+        val state = _gameState.value ?: return
+        val currentBuyState = state.pendingBuyPriority ?: return
+
+        if (currentBuyState.eligibleContenderIds.isEmpty()) {
+            val afterPass = state.copy(
+                pendingBuyPriority = null,
+                statusMessage = "${state.players.find { it.id == currentBuyState.nextTurnPlayerId }?.name}'s turn."
+            )
+            _gameState.value = afterPass
+            persistState(afterPass)
+            checkTurnState()
+            return
         }
 
-        // Nobody bought it, proceed with turn
-        val stateAfterPass = state.copy(
-            pendingBuyPriority = null,
-            statusMessage = "${state.currentPlayer.name}'s turn to draw."
-        )
-        _gameState.value = stateAfterPass
-        persistState(stateAfterPass)
-        checkTurnState()
+        val nextContenderId = currentBuyState.eligibleContenderIds.first()
+        val nextContender = state.players.find { it.id == nextContenderId } ?: return
+
+        if (nextContender.isHuman) {
+            // WAIT INDEFINITELY for human to press Buy or Pass.
+            val waitState = state.copy(statusMessage = "Waiting for your Buy/Pass decision...")
+            _gameState.value = waitState
+            return
+        }
+
+        // It is an AI's turn to decide on the Buy
+        val waitAiState = state.copy(statusMessage = "Checking if ${nextContender.name} wants to Buy...")
+        _gameState.value = waitAiState
+
+        viewModelScope.launch {
+            delay(1000)
+            val currentState = _gameState.value ?: return@launch
+            val currentPriority = currentState.pendingBuyPriority ?: return@launch
+
+            val wantsBuy = AiPlayerEngine.shouldAiBuyDiscard(nextContender, currentPriority.discardCard, currentState.contractLevel, currentState.allTableMelds)
+            if (wantsBuy) {
+                val (boughtState, _) = DeckEngine.buyDiscard(currentState, nextContenderId)
+                val afterBuy = boughtState.copy(
+                    pendingBuyPriority = null,
+                    statusMessage = "${nextContender.name} bought ${currentPriority.discardCard.displayName}."
+                )
+                _gameState.value = afterBuy
+                persistState(afterBuy)
+                checkTurnState()
+            } else {
+                val afterPass = currentState.copy(
+                    pendingBuyPriority = currentPriority.copy(
+                        interestedBuyerIds = currentPriority.eligibleContenderIds.drop(1)
+                    )
+                )
+                _gameState.value = afterPass
+                processBuyPrioritySequence()
+            }
+        }
     }
 
     // DISCARD ACTION
@@ -371,7 +409,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val finalAdvancedState = DeckEngine.nextTurn(stateWithBuy)
             _gameState.value = finalAdvancedState
             persistState(finalAdvancedState)
-            checkTurnState()
+            processBuyPrioritySequence()
         } else {
             val finalAdvancedState = DeckEngine.nextTurn(state)
             _gameState.value = finalAdvancedState
@@ -414,23 +452,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val state = _gameState.value ?: return
         val human = state.humanPlayer ?: return
 
-        if (!human.isDown) {
-            _gameState.value = state.copy(statusMessage = "You must go down before you can Play On other melds!")
-            return
-        }
         if (!state.isHumanTurn || state.currentPhase != TurnPhase.PLAY_OR_DISCARD) {
             _gameState.value = state.copy(statusMessage = "You can only Play On during your play phase!")
             return
         }
 
-        val selectedCardId = _selectedCardIds.value.firstOrNull()
-        if (selectedCardId == null) {
-            _gameState.value = state.copy(statusMessage = "Select 1 card from your rack to Play On.")
-            return
-        }
-
-        val card = human.hand.find { it.id == selectedCardId } ?: return
-        _showLayoffDestinationDialog.value = card
+        _isLayoffDialogOpen.value = true
     }
 
     fun onLayoffToMeld(meldId: String, card: Card) {
@@ -457,7 +484,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val (stateAfterPlayOn, success) = DeckEngine.playOnMeld(state, human.id, card, meldId)
         if (success) {
             _selectedCardIds.value = emptySet()
-            _showLayoffDestinationDialog.value = null
+            _isLayoffDialogOpen.value = false
 
             val updatedHuman = stateAfterPlayOn.players.find { it.id == human.id }
             if (updatedHuman != null && updatedHuman.hand.isEmpty()) {
@@ -486,7 +513,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             shiftWildToHead = shiftToHead
         )
         _pendingJokerReplacement.value = null
-        _showLayoffDestinationDialog.value = null
+        _isLayoffDialogOpen.value = false
         _selectedCardIds.value = emptySet()
 
         if (success) {
@@ -560,12 +587,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun runAiTurn() {
         aiLoopJob?.cancel()
         aiLoopJob = viewModelScope.launch {
-            delay(1000)
-            val state = _gameState.value ?: return@launch
-            if (state.isHumanTurn) return@launch
-
-            val aiPlayer = state.currentPlayer
-            var currentState = state
+            val initialState = _gameState.value ?: return@launch
+            if (initialState.isHumanTurn) return@launch
+            
+            val aiPlayer = initialState.currentPlayer
+            _gameState.value = initialState.copy(statusMessage = "${aiPlayer.name} is thinking...")
+            delay(800)
+            
+            var currentState = _gameState.value ?: return@launch
+            if (currentState.topDiscard != null) {
+                _gameState.value = currentState.copy(statusMessage = "${aiPlayer.name} is checking the discard...")
+                delay(600)
+                currentState = _gameState.value ?: return@launch
+            }
 
             // 1. DRAW PHASE
             val shouldTakeDiscard = if (currentState.topDiscard != null) {
@@ -579,6 +613,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     statusMessage = "${aiPlayer.name} took ${card?.displayName} from Discard."
                 )
             } else {
+                _gameState.value = currentState.copy(statusMessage = "${aiPlayer.name} is drawing from Stock...")
+                delay(600)
+                currentState = _gameState.value ?: return@launch
+                
                 val (stateAfterDraw, _) = DeckEngine.drawCard(currentState, aiPlayer.id)
                 currentState = stateAfterDraw.copy(
                     currentPhase = TurnPhase.PLAY_OR_DISCARD,
@@ -587,10 +625,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
             _gameState.value = currentState
             delay(800)
+            currentState = _gameState.value ?: return@launch
 
             // 2. CHECK GO DOWN
             var updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: return@launch
             if (!updatedAi.isDown) {
+                _gameState.value = currentState.copy(statusMessage = "${aiPlayer.name} is checking melds...")
+                delay(600)
+                currentState = _gameState.value ?: return@launch
+                
                 val candidateMelds = MeldDetector.findValidContract(
                     updatedAi.hand,
                     currentState.contractLevel,
@@ -611,6 +654,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             // 3. CHECK PLAY ON
             if (updatedAi.isDown) {
                 val moves = AiPlayerEngine.findAiPlayOnMoves(updatedAi, currentState.allTableMelds)
+                if (moves.isNotEmpty()) {
+                    _gameState.value = currentState.copy(statusMessage = "${updatedAi.name} is playing...")
+                    delay(600)
+                    currentState = _gameState.value ?: return@launch
+                }
+                
                 for (move in moves) {
                     val (stateAfterLayoff, success) = DeckEngine.playOnMeld(currentState, updatedAi.id, move.card, move.targetMeldId)
                     if (success) {
@@ -629,6 +678,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // 4. DISCARD PHASE
+            _gameState.value = currentState.copy(statusMessage = "${updatedAi.name} is discarding...")
+            delay(600)
+            currentState = _gameState.value ?: return@launch
+            
             val discardCard = AiPlayerEngine.chooseDiscard(updatedAi, currentState.contractLevel, currentState.allTableMelds)
             executeDiscard(currentState, updatedAi, discardCard)
         }
@@ -646,7 +699,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun setRulesVisible(visible: Boolean) { _showRules.value = visible }
     fun setHistoryDialogVisible(visible: Boolean) { _showHistoryDialog.value = visible }
     fun setMeldBuilderVisible(visible: Boolean) { _showMeldBuilder.value = visible }
-    fun dismissLayoffDialog() { _showLayoffDestinationDialog.value = null }
+    fun dismissLayoffDialog() { _isLayoffDialogOpen.value = false }
     fun dismissJokerDialog() { _pendingJokerReplacement.value = null }
 }
 
