@@ -1,34 +1,40 @@
 package com.example.ui
 
 import android.app.Application
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.engine.*
+import com.example.engine.AiPlayerEngine
+import com.example.engine.DeckEngine
+import com.example.engine.MeldDetector
 import com.example.model.*
 import com.example.storage.GamePreferences
-import com.example.ui.components.DragDropRegistry
-import com.example.ui.components.DragDropTarget
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val preferences = GamePreferences(application)
 
-    private val _gameState = MutableStateFlow(GameState())
-    val gameState: StateFlow<GameState> = _gameState.asStateFlow()
+    private val _gameState = MutableStateFlow<GameState?>(null)
+    val gameState: StateFlow<GameState?> = _gameState.asStateFlow()
+
+    private val _savedMatchState = MutableStateFlow<GameState?>(null)
+    val savedMatchState: StateFlow<GameState?> = _savedMatchState.asStateFlow()
+
+    private val _matchHistory = MutableStateFlow<List<MatchHistoryEntry>>(emptyList())
+    val matchHistory: StateFlow<List<MatchHistoryEntry>> = _matchHistory.asStateFlow()
 
     private val _selectedCardIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedCardIds: StateFlow<Set<String>> = _selectedCardIds.asStateFlow()
 
-    // Dialog state
+    // Dialog & UI flows
+    private val _showPauseDialog = MutableStateFlow(false)
+    val showPauseDialog: StateFlow<Boolean> = _showPauseDialog.asStateFlow()
+
     private val _showScoreboard = MutableStateFlow(false)
     val showScoreboard: StateFlow<Boolean> = _showScoreboard.asStateFlow()
 
@@ -38,981 +44,624 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _showRules = MutableStateFlow(false)
     val showRules: StateFlow<Boolean> = _showRules.asStateFlow()
 
+    private val _showHistoryDialog = MutableStateFlow(false)
+    val showHistoryDialog: StateFlow<Boolean> = _showHistoryDialog.asStateFlow()
+
     private val _showMeldBuilder = MutableStateFlow(false)
     val showMeldBuilder: StateFlow<Boolean> = _showMeldBuilder.asStateFlow()
 
-    private val _showLayoffDialog = MutableStateFlow<Card?>(null)
-    val showLayoffDialog: StateFlow<Card?> = _showLayoffDialog.asStateFlow()
+    private val _showLayoffDestinationDialog = MutableStateFlow<Card?>(null)
+    val showLayoffDestinationDialog: StateFlow<Card?> = _showLayoffDestinationDialog.asStateFlow()
 
-    private val _pendingJokerMove = MutableStateFlow<PendingJokerMove?>(null)
-    val pendingJokerMove: StateFlow<PendingJokerMove?> = _pendingJokerMove.asStateFlow()
+    private val _pendingJokerReplacement = MutableStateFlow<JokerReplacementState?>(null)
+    val pendingJokerReplacement: StateFlow<JokerReplacementState?> = _pendingJokerReplacement.asStateFlow()
 
-    private val _showWinningTrophy = MutableStateFlow(false)
-    val showWinningTrophy: StateFlow<Boolean> = _showWinningTrophy.asStateFlow()
+    private val _activeRummayCall = MutableStateFlow<RummayCallState?>(null)
+    val activeRummayCall: StateFlow<RummayCallState?> = _activeRummayCall.asStateFlow()
 
-    private val _showPauseDialog = MutableStateFlow(false)
-    val showPauseDialog: StateFlow<Boolean> = _showPauseDialog.asStateFlow()
+    private val _roundWinner = MutableStateFlow<Player?>(null)
+    val roundWinner: StateFlow<Player?> = _roundWinner.asStateFlow()
 
-    private val _showMatchHistory = MutableStateFlow(false)
-    val showMatchHistory: StateFlow<Boolean> = _showMatchHistory.asStateFlow()
+    private val _isTournamentFinished = MutableStateFlow(false)
+    val isTournamentFinished: StateFlow<Boolean> = _isTournamentFinished.asStateFlow()
 
-    private val _matchHistoryList = MutableStateFlow<List<MatchHistoryEntry>>(emptyList())
-    val matchHistoryList: StateFlow<List<MatchHistoryEntry>> = _matchHistoryList.asStateFlow()
+    private val _autoSortEnabled = MutableStateFlow(false)
+    val autoSortEnabled: StateFlow<Boolean> = _autoSortEnabled.asStateFlow()
 
-    private val _hasSavedGame = MutableStateFlow(false)
-    val hasSavedGame: StateFlow<Boolean> = _hasSavedGame.asStateFlow()
-
-    private val _isInMainMenu = MutableStateFlow(true)
-    val isInMainMenu: StateFlow<Boolean> = _isInMainMenu.asStateFlow()
-
-    // Drag-and-drop state
-    val dragRegistry = DragDropRegistry()
-    private val _activeDraggedCard = MutableStateFlow<Card?>(null)
-    val activeDraggedCard: StateFlow<Card?> = _activeDraggedCard.asStateFlow()
-
-    private val _dragGlobalPosition = MutableStateFlow<Offset?>(null)
-    val dragGlobalPosition: StateFlow<Offset?> = _dragGlobalPosition.asStateFlow()
-
-    private val _hoveredTarget = MutableStateFlow<DragDropTarget?>(null)
-    val hoveredTarget: StateFlow<DragDropTarget?> = _hoveredTarget.asStateFlow()
-
-    private var aiTurnJob: Job? = null
+    private var aiLoopJob: Job? = null
 
     init {
-        loadInitialState()
+        loadPersistedData()
     }
 
-    private fun loadInitialState() {
-        val saved = preferences.loadGameState()
-        val history = preferences.loadMatchHistory()
-        _matchHistoryList.value = history
-        if (saved != null) {
-            _hasSavedGame.value = true
-        }
+    private fun loadPersistedData() {
+        val saved = preferences.loadActiveGame()
+        _savedMatchState.value = saved
+        _matchHistory.value = preferences.loadMatchHistory()
     }
 
-    fun startNewTournament() {
-        aiTurnJob?.cancel()
-        val aiNames = NameGenerator.generateOpponents(3)
-        val players = listOf(
-            Player(id = "player_human", name = "You", isHuman = true),
-            Player(id = "player_ai_1", name = aiNames[0], isHuman = false),
-            Player(id = "player_ai_2", name = aiNames[1], isHuman = false),
-            Player(id = "player_ai_3", name = aiNames[2], isHuman = false)
-        )
-
-        val newState = startLevelInternal(level = 1, players = players, dealerIndex = 0)
+    fun startNewTournament(humanName: String = "You") {
+        aiLoopJob?.cancel()
+        val newState = DeckEngine.startNewGame(humanName = humanName)
         _gameState.value = newState
-        _isInMainMenu.value = false
-        _hasSavedGame.value = true
         _selectedCardIds.value = emptySet()
-        saveCurrentState()
-        checkAndTriggerAITurn()
+        _roundWinner.value = null
+        _isTournamentFinished.value = false
+        preferences.saveActiveGame(newState)
+        _savedMatchState.value = newState
+
+        checkTurnState()
     }
 
-    fun resumeSavedGame() {
-        val saved = preferences.loadGameState()
+    fun resumeSavedTournament() {
+        val saved = preferences.loadActiveGame()
         if (saved != null) {
+            aiLoopJob?.cancel()
             _gameState.value = saved
-            _isInMainMenu.value = false
-            _hasSavedGame.value = true
             _selectedCardIds.value = emptySet()
-            checkAndTriggerAITurn()
+            _roundWinner.value = null
+            _isTournamentFinished.value = false
+            checkTurnState()
         }
     }
 
-    fun openPauseDialog() {
-        aiTurnJob?.cancel()
-        saveCurrentState()
-        _showPauseDialog.value = true
-    }
-
-    fun resumeFromPause() {
-        _showPauseDialog.value = false
-        checkAndTriggerAITurn()
-    }
-
-    fun saveAndReturnToMenu() {
-        _showPauseDialog.value = false
-        aiTurnJob?.cancel()
-        saveCurrentState()
-        _isInMainMenu.value = true
-        _hasSavedGame.value = preferences.hasSavedGame()
-    }
-
-    fun quitToMainMenu() {
-        _showPauseDialog.value = false
-        aiTurnJob?.cancel()
-        preferences.clearSavedGame()
-        _hasSavedGame.value = false
-        _isInMainMenu.value = true
-    }
-
-    fun returnToMainMenu() {
-        aiTurnJob?.cancel()
-        saveCurrentState()
-        _isInMainMenu.value = true
-        _hasSavedGame.value = preferences.hasSavedGame()
-    }
-
-    private fun startLevelInternal(level: Int, players: List<Player>, dealerIndex: Int): GameState {
-        val contract = ContractLevel.fromLevelNumber(level)
-        val resetPlayers = players.map { it.copy(hand = emptyList(), isDown = false, rackRows = emptyList()) }
-        val dealResult = DeckEngine.dealNewRound(resetPlayers, contract)
-
-        // Find starting player (left of dealer)
-        val startingPlayerIndex = (dealerIndex + 1) % resetPlayers.size
-
-        return GameState(
-            currentLevel = level,
-            dealerIndex = dealerIndex,
-            currentTurnPlayerIndex = startingPlayerIndex,
-            currentPhase = TurnPhase.DRAW,
-            drawDeck = dealResult.drawDeck,
-            discardPile = dealResult.discardPile,
-            players = dealResult.players,
-            melds = emptyList(),
-            allTableMelds = emptyList(),
-            gameLogs = listOf("Starting Level $level: ${contract.shortRequirement} (Dealer: ${resetPlayers[dealerIndex].name})")
-        )
-    }
-
-    private fun saveCurrentState() {
-        val current = _gameState.value
-        if (current.players.isNotEmpty()) {
-            preferences.saveGameState(current)
-            _hasSavedGame.value = true
+    fun toggleAutoSort() {
+        _autoSortEnabled.value = !_autoSortEnabled.value
+        if (_autoSortEnabled.value) {
+            sortHumanHand(SortMode.RANK)
         }
     }
 
-    // UI Click Actions
+    fun sortHumanHand(mode: SortMode) {
+        val state = _gameState.value ?: return
+        val human = state.humanPlayer ?: return
+        val updatedHand = DeckEngine.sortHand(human.hand, mode)
+        val updatedHuman = human.copy(hand = updatedHand)
+        val finalHuman = DeckEngine.repackRackSlots(updatedHuman)
+
+        val updatedPlayers = state.players.map { if (it.id == human.id) finalHuman else it }
+        val newState = state.copy(players = updatedPlayers, sortMode = mode)
+        _gameState.value = newState
+        persistState(newState)
+    }
+
     fun toggleCardSelection(cardId: String) {
-        _selectedCardIds.update { current ->
-            if (current.contains(cardId)) current - cardId else current + cardId
+        val current = _selectedCardIds.value.toMutableSet()
+        if (current.contains(cardId)) {
+            current.remove(cardId)
+        } else {
+            current.add(cardId)
         }
+        _selectedCardIds.value = current
     }
 
     fun clearSelection() {
         _selectedCardIds.value = emptySet()
     }
 
-    fun toggleAutoSort() {
-        val currentAuto = _gameState.value.autoSortHand
-        val newAuto = !currentAuto
-        _gameState.update { it.copy(autoSortHand = newAuto) }
-        if (newAuto) {
-            sortHand(SortMode.RANK)
-        }
-    }
+    // DRAW ACTIONS
+    fun onHumanDrawFromStock() {
+        val state = _gameState.value ?: return
+        if (!state.isHumanTurn || state.currentPhase != TurnPhase.DRAW) return
 
-    fun sortHand(mode: SortMode) {
-        _gameState.update { state ->
-            val updatedPlayers = state.players.map { player ->
-                if (player.isHuman) {
-                    val sortedHand = when (mode) {
-                        SortMode.RANK -> player.hand.sortedWith(
-                            compareBy<Card> { if (it.isWild) 100 else it.rank.value }
-                                .thenBy { it.suit.ordinal }
-                        )
-                        SortMode.SUIT -> player.hand.sortedWith(
-                            compareBy<Card> { if (it.isWild) 100 else it.suit.ordinal }
-                                .thenBy { it.rank.value }
-                        )
-                        SortMode.CUSTOM -> player.hand
-                    }
-                    player.copy(hand = sortedHand).reorganizeHandIntoRack()
-                } else {
-                    player
-                }
-            }
-            state.copy(players = updatedPlayers, sortMode = mode)
-        }
-    }
-
-    // DRAW PHASE ACTIONS
-    fun onDrawFromStock() {
-        val state = _gameState.value
-        val human = state.humanPlayer ?: return
-        if (state.currentTurnPlayer.id != human.id || state.currentPhase != TurnPhase.DRAW) return
-
-        val (newDeck, drawnCard, newDiscards) = DeckEngine.drawCard(state.drawDeck, state.discardPile)
-        if (drawnCard == null) return
-
-        val newHand = human.hand + drawnCard
-        val updatedHuman = if (state.autoSortHand) {
-            human.copy(hand = newHand).sortedByRank().reorganizeHandIntoRack()
-        } else {
-            human.withUpdatedHand(newHand)
-        }
-
-        val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
-        val updatedState = state.copy(
-            drawDeck = newDeck,
-            discardPile = newDiscards,
-            players = updatedPlayers,
-            currentPhase = TurnPhase.PLAY_OR_DISCARD,
-            pendingToYouOffer = null,
-            gameLogs = state.gameLogs + "You drew 1 card from the stock pile."
-        )
-        _gameState.value = updatedState
-        saveCurrentState()
-    }
-
-    fun onTakeDiscardToYou() {
-        val state = _gameState.value
-        val human = state.humanPlayer ?: return
-        if (state.currentTurnPlayer.id != human.id || state.currentPhase != TurnPhase.DRAW) return
-        if (state.discardPile.isEmpty()) return
-
-        val discard = state.discardPile.last()
-        val newDiscards = state.discardPile.dropLast(1)
-        val newHand = human.hand + discard
-        val updatedHuman = if (state.autoSortHand) {
-            human.copy(hand = newHand).sortedByRank().reorganizeHandIntoRack()
-        } else {
-            human.withUpdatedHand(newHand)
-        }
-
-        val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
-        val updatedState = state.copy(
-            discardPile = newDiscards,
-            players = updatedPlayers,
-            currentPhase = TurnPhase.PLAY_OR_DISCARD,
-            pendingToYouOffer = null,
-            gameLogs = state.gameLogs + "You took ${discard.displayName} from the discard pile."
-        )
-        _gameState.value = updatedState
-        saveCurrentState()
-    }
-
-    // DISCARD ACTION
-    fun onDiscardCard(cardId: String? = null) {
-        val state = _gameState.value
-        val human = state.humanPlayer ?: return
-        if (state.currentTurnPlayer.id != human.id || state.currentPhase != TurnPhase.PLAY_OR_DISCARD) return
-
-        val targetCardId = cardId ?: _selectedCardIds.value.firstOrNull() ?: return
-        val cardToDiscard = human.hand.find { it.id == targetCardId } ?: return
-
-        val newHand = human.hand.filter { it.id != targetCardId }
-        val updatedHuman = human.withUpdatedHand(newHand)
-        val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
-        val newDiscards = state.discardPile + cardToDiscard
-
-        _selectedCardIds.value = emptySet()
-
-        // Check if human went OUT
-        if (newHand.isEmpty()) {
-            handlePlayerWentOut(human.id, updatedPlayers, newDiscards, state.allTableMelds)
-            return
-        }
-
-        // Check Rummay possibility on this discard
-        val isRummayEligible = state.allTableMelds.any { it.canAddCard(cardToDiscard) }
-
-        if (isRummayEligible) {
-            // Trigger Rummay window
-            val rummayOffer = PendingRummayCall(
-                discardedCard = cardToDiscard,
-                offenderId = human.id,
-                offenderName = human.name,
-                eligibleMelds = state.allTableMelds.filter { it.canAddCard(cardToDiscard) }
+        val (updatedState, drawnCard) = DeckEngine.drawCard(state, state.humanPlayer?.id ?: return)
+        if (drawnCard != null) {
+            val stateAfterDraw = updatedState.copy(
+                currentPhase = TurnPhase.PLAY_OR_DISCARD,
+                statusMessage = "You drew ${drawnCard.displayName} from Stock. Meld, Play On, or Discard."
             )
-            _gameState.value = state.copy(
-                players = updatedPlayers,
-                discardPile = newDiscards,
-                pendingRummay = rummayOffer,
-                gameLogs = state.gameLogs + "You discarded ${cardToDiscard.displayName} (Rummay Opportunity!)."
-            )
-            saveCurrentState()
-            evaluateAiRummayCall(rummayOffer)
-            return
+            _gameState.value = stateAfterDraw
+            persistState(stateAfterDraw)
         }
-
-        // Check Out-of-turn Buy priority from AI opponents
-        val buyCandidates = state.players.filter { it.id != human.id }
-        val interestedAi = buyCandidates.firstOrNull { ai ->
-            AiPlayerEngine.shouldAiBuyDiscard(ai, cardToDiscard, state.contractLevel, state.allTableMelds)
-        }
-
-        if (interestedAi != null) {
-            val pendingBuy = PendingBuyPriority(
-                discard = cardToDiscard,
-                discarderId = human.id,
-                discarderName = human.name,
-                nextTurnPlayerId = state.players[(state.currentTurnPlayerIndex + 1) % state.players.size].id,
-                interestedBuyerIds = listOf(interestedAi.id)
-            )
-            _gameState.value = state.copy(
-                players = updatedPlayers,
-                discardPile = newDiscards,
-                pendingBuyPriority = pendingBuy,
-                gameLogs = state.gameLogs + "You discarded ${cardToDiscard.displayName}."
-            )
-            saveCurrentState()
-            executeAiBuy(interestedAi.id, cardToDiscard)
-            return
-        }
-
-        // Normal turn advancement
-        advanceToNextPlayer(updatedPlayers, newDiscards, state.allTableMelds, "You discarded ${cardToDiscard.displayName}.")
     }
 
-    // BUY OUT-OF-TURN ACTION (HUMAN)
+    fun onHumanTakeDiscard() {
+        val state = _gameState.value ?: return
+        if (!state.isHumanTurn) return
+
+        val (updatedState, takenCard) = DeckEngine.takeDiscard(state, state.humanPlayer?.id ?: return)
+        if (takenCard != null) {
+            val stateAfterTake = updatedState.copy(
+                currentPhase = TurnPhase.PLAY_OR_DISCARD,
+                statusMessage = "You took ${takenCard.displayName} from Discard. Meld, Play On, or Discard."
+            )
+            _gameState.value = stateAfterTake
+            persistState(stateAfterTake)
+        }
+    }
+
+    // BUY DISCARD
     fun onHumanBuyDiscard() {
-        val state = _gameState.value
-        val human = state.humanPlayer ?: return
-        val pendingBuy = state.pendingBuyPriority ?: return
-        val discard = pendingBuy.discard
-
-        val (newDeck, penaltyCard, _) = DeckEngine.drawCard(state.drawDeck, state.discardPile)
-        val newDiscards = state.discardPile.dropLast(1)
-        val newCards = listOfNotNull(discard, penaltyCard)
-        val newHand = human.hand + newCards
-        val updatedHuman = if (state.autoSortHand) {
-            human.copy(hand = newHand).sortedByRank().reorganizeHandIntoRack()
-        } else {
-            human.withUpdatedHand(newHand)
+        val state = _gameState.value ?: return
+        val humanId = state.humanPlayer?.id ?: return
+        val (updatedState, boughtCard) = DeckEngine.buyDiscard(state, humanId)
+        if (boughtCard != null) {
+            val finalState = updatedState.copy(
+                pendingBuyPriority = null,
+                statusMessage = "You bought ${boughtCard.displayName} (+1 draw penalty from Stock)."
+            )
+            _gameState.value = finalState
+            persistState(finalState)
+            checkTurnState()
         }
-
-        val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
-        val nextTurnIdx = state.players.indexOfFirst { it.id == pendingBuy.nextTurnPlayerId }
-
-        val updatedState = state.copy(
-            drawDeck = newDeck,
-            discardPile = newDiscards,
-            players = updatedPlayers,
-            pendingBuyPriority = null,
-            currentTurnPlayerIndex = if (nextTurnIdx != -1) nextTurnIdx else (state.currentTurnPlayerIndex + 1) % state.players.size,
-            currentPhase = TurnPhase.DRAW,
-            gameLogs = state.gameLogs + "You BOUGHT ${discard.displayName} (+1 penalty card from stock)."
-        )
-        _gameState.value = updatedState
-        saveCurrentState()
-        checkAndTriggerAITurn()
     }
 
     fun onHumanPassBuy() {
-        val state = _gameState.value
-        val pendingBuy = state.pendingBuyPriority ?: return
-        val nextTurnIdx = state.players.indexOfFirst { it.id == pendingBuy.nextTurnPlayerId }
+        val state = _gameState.value ?: return
+        val currentBuyState = state.pendingBuyPriority ?: return
+        val remainingContenders = currentBuyState.eligibleContenderIds.filter { it != state.humanPlayer?.id }
 
-        val updatedState = state.copy(
+        if (remainingContenders.isNotEmpty()) {
+            val nextContenderId = remainingContenders.first()
+            val nextContender = state.players.find { it.id == nextContenderId }
+            if (nextContender != null && !nextContender.isHuman) {
+                val wantsBuy = AiPlayerEngine.shouldAiBuyDiscard(nextContender, currentBuyState.discardCard, state.contractLevel, state.allTableMelds)
+                if (wantsBuy) {
+                    val (boughtState, _) = DeckEngine.buyDiscard(state, nextContenderId)
+                    val afterBuy = boughtState.copy(
+                        pendingBuyPriority = null,
+                        statusMessage = "${nextContender.name} bought ${currentBuyState.discardCard.displayName}."
+                    )
+                    _gameState.value = afterBuy
+                    persistState(afterBuy)
+                    checkTurnState()
+                    return
+                }
+            }
+        }
+
+        // Nobody bought it, proceed with turn
+        val stateAfterPass = state.copy(
             pendingBuyPriority = null,
-            currentTurnPlayerIndex = if (nextTurnIdx != -1) nextTurnIdx else (state.currentTurnPlayerIndex + 1) % state.players.size,
-            currentPhase = TurnPhase.DRAW
+            statusMessage = "${state.currentPlayer.name}'s turn to draw."
         )
-        _gameState.value = updatedState
-        saveCurrentState()
-        checkAndTriggerAITurn()
+        _gameState.value = stateAfterPass
+        persistState(stateAfterPass)
+        checkTurnState()
     }
 
-    // GO DOWN (MELD CONFIRMATION)
-    fun onConfirmGoDown(groups: List<List<Card>>) {
-        val state = _gameState.value
+    // DISCARD ACTION
+    fun onHumanDiscardSelectedCard() {
+        val state = _gameState.value ?: return
+        if (!state.isHumanTurn || state.currentPhase != TurnPhase.PLAY_OR_DISCARD) {
+            _gameState.value = state.copy(statusMessage = "You can only discard after drawing during your turn!")
+            return
+        }
+
+        val selectedCardId = _selectedCardIds.value.firstOrNull()
+        if (selectedCardId == null) {
+            _gameState.value = state.copy(statusMessage = "Select 1 card from your rack to discard.")
+            return
+        }
+        val human = state.humanPlayer ?: return
+        if (state.contractLevel.noDiscard && human.hand.size == 1) {
+            _gameState.value = state.copy(statusMessage = "NO DISCARD: You must play all cards to win. You cannot discard your last card!")
+            return
+        }
+        
+        val card = human.hand.find { it.id == selectedCardId } ?: return
+
+        executeDiscard(state, human, card)
+    }
+
+    fun onHumanDiscardCard(card: Card) {
+        val state = _gameState.value ?: return
+        if (!state.isHumanTurn || state.currentPhase != TurnPhase.PLAY_OR_DISCARD) return
+
+        val human = state.humanPlayer ?: return
+        if (state.contractLevel.noDiscard && human.hand.size == 1) {
+            _gameState.value = state.copy(statusMessage = "NO DISCARD: You must play all cards to win. You cannot discard your last card!")
+            return
+        }
+        
+        executeDiscard(state, human, card)
+    }
+
+    private fun executeDiscard(state: GameState, player: Player, card: Card) {
+        _selectedCardIds.value = emptySet()
+        
+        if (state.contractLevel.noDiscard && player.hand.size == 1) {
+            // In Level 7, AI might try to discard its last card. 
+            // We just skip the discard and advance turn.
+            advanceTurn(state, null)
+            return
+        }
+
+        // Check for Rummay! (Offending discard)
+        val canPlayOnAnyMeld = state.allTableMelds.any { it.canAddCard(card) }
+        val (stateAfterDiscard, _) = DeckEngine.discardCard(state, player.id, card)
+
+        // Check if player went out
+        val updatedPlayer = stateAfterDiscard.players.find { it.id == player.id }
+        if (updatedPlayer != null && updatedPlayer.hand.isEmpty()) {
+            handleRoundWon(stateAfterDiscard, updatedPlayer)
+            return
+        }
+
+        if (canPlayOnAnyMeld && stateAfterDiscard.allTableMelds.isNotEmpty()) {
+            triggerRummayAlert(stateAfterDiscard, player, card)
+            return
+        }
+
+        advanceTurn(stateAfterDiscard, card)
+    }
+
+    private fun triggerRummayAlert(state: GameState, offender: Player, discardedCard: Card) {
+        val isHumanOffender = offender.isHuman
+        val human = state.humanPlayer
+
+        _activeRummayCall.value = RummayCallState(
+            discardedCard = discardedCard,
+            offender = offender,
+            caller = null,
+            isHumanCaller = false,
+            isHumanOffender = isHumanOffender,
+            humanPlayer = human
+        )
+    }
+
+    fun onHumanCallRummay() {
+        val currentCall = _activeRummayCall.value ?: return
+        val state = _gameState.value ?: return
+        val human = state.humanPlayer ?: return
+
+        _activeRummayCall.value = currentCall.copy(
+            caller = human,
+            isHumanCaller = true
+        )
+    }
+
+    fun onHumanPassRummay() {
+        val currentCall = _activeRummayCall.value ?: return
+        val state = _gameState.value ?: return
+
+        // AI might call Rummay
+        val aiCallers = state.players.filter { !it.isHuman && it.id != currentCall.offender.id && it.hand.isNotEmpty() }
+        val aiCaller = aiCallers.firstOrNull()
+
+        if (aiCaller != null) {
+            val penaltyCard = aiCaller.hand.maxByOrNull { it.points } ?: aiCaller.hand.first()
+            val stateAfterTransfer = DeckEngine.transferCardBetweenPlayers(state, aiCaller.id, currentCall.offender.id, penaltyCard)
+            _activeRummayCall.value = null
+
+            val updatedState = stateAfterTransfer.copy(
+                statusMessage = "${aiCaller.name} called RUMMAY! and gave a card to ${currentCall.offender.name}."
+            )
+            _gameState.value = updatedState
+            persistState(updatedState)
+            advanceTurn(updatedState, currentCall.discardedCard)
+        } else {
+            _activeRummayCall.value = null
+            advanceTurn(state, currentCall.discardedCard)
+        }
+    }
+
+    fun onHumanGiveCardToRummayOffender(penaltyCard: Card) {
+        val currentCall = _activeRummayCall.value ?: return
+        val state = _gameState.value ?: return
+        val human = state.humanPlayer ?: return
+
+        val stateAfterTransfer = DeckEngine.transferCardBetweenPlayers(state, human.id, currentCall.offender.id, penaltyCard)
+        _activeRummayCall.value = null
+
+        val updatedState = stateAfterTransfer.copy(
+            statusMessage = "You called RUMMAY! and gave ${penaltyCard.displayName} to ${currentCall.offender.name}."
+        )
+        _gameState.value = updatedState
+        persistState(updatedState)
+        advanceTurn(updatedState, currentCall.discardedCard)
+    }
+
+    private fun advanceTurn(state: GameState, lastDiscarded: Card?) {
+        val nextPlayer = state.nextPlayer
+
+        val potentialBuyers = state.players.filter { it.id != nextPlayer.id && it.id != state.currentPlayer.id }
+        val eligibleContenderIds = potentialBuyers.map { it.id }
+
+        if (lastDiscarded != null && eligibleContenderIds.isNotEmpty()) {
+            val stateWithBuy = state.copy(
+                pendingBuyPriority = PendingBuyPriority(
+                    discard = lastDiscarded,
+                    discarderId = state.currentPlayer.id,
+                    discarderName = state.currentPlayer.name,
+                    nextTurnPlayerId = nextPlayer.id,
+                    interestedBuyerIds = eligibleContenderIds
+                )
+            )
+            val finalAdvancedState = DeckEngine.nextTurn(stateWithBuy)
+            _gameState.value = finalAdvancedState
+            persistState(finalAdvancedState)
+            checkTurnState()
+        } else {
+            val finalAdvancedState = DeckEngine.nextTurn(state)
+            _gameState.value = finalAdvancedState
+            persistState(finalAdvancedState)
+            checkTurnState()
+        }
+    }
+
+    // GOING DOWN / CONFIRM MELDS
+    fun onConfirmGoDown(meldGroups: List<List<Card>>) {
+        val state = _gameState.value ?: return
         val human = state.humanPlayer ?: return
 
         val validatedMelds = MeldDetector.validateContract(
-            groups = groups,
+            groups = meldGroups,
             level = state.contractLevel,
             playerId = human.id,
             playerName = human.name
         ) ?: return
 
-        val usedCardIds = groups.flatten().map { it.id }.toSet()
-        val remainingHand = human.hand.filter { !usedCardIds.contains(it.id) }
-        val updatedHuman = human.withUpdatedHand(remainingHand).copy(isDown = true)
-
-        val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
-        val updatedAllMelds = state.allTableMelds + validatedMelds
-
+        val (stateAfterMeld, _) = DeckEngine.goDown(state, human.id, validatedMelds)
         _showMeldBuilder.value = false
         _selectedCardIds.value = emptySet()
 
-        // Check if level 7 or hand empty (went out)
-        if (remainingHand.isEmpty()) {
-            handlePlayerWentOut(human.id, updatedPlayers, state.discardPile, updatedAllMelds)
+        val updatedHuman = stateAfterMeld.players.find { it.id == human.id }
+        if (updatedHuman != null && updatedHuman.hand.isEmpty()) {
+            handleRoundWon(stateAfterMeld, updatedHuman)
             return
         }
 
-        val updatedState = state.copy(
-            players = updatedPlayers,
-            allTableMelds = updatedAllMelds,
-            gameLogs = state.gameLogs + "You successfully went DOWN with ${state.contractLevel.shortRequirement}!"
+        val finalState = stateAfterMeld.copy(
+            statusMessage = "You Went Down! Now you can Play On to any table meld or Discard."
         )
-        _gameState.value = updatedState
-        saveCurrentState()
+        _gameState.value = finalState
+        persistState(finalState)
     }
 
-    // PLAY ON / LAYOFF ACTION
-    fun onPlayOnSingleCard(card: Card, targetMeldId: String) {
-        val state = _gameState.value
+    // PLAY ON (LAYOFF)
+    fun onPlayOnSelectedCard() {
+        val state = _gameState.value ?: return
         val human = state.humanPlayer ?: return
-        if (!human.isDown) return
 
-        val targetMeld = state.allTableMelds.find { it.id == targetMeldId } ?: return
+        if (!human.isDown) {
+            _gameState.value = state.copy(statusMessage = "You must go down before you can Play On other melds!")
+            return
+        }
+        if (!state.isHumanTurn || state.currentPhase != TurnPhase.PLAY_OR_DISCARD) {
+            _gameState.value = state.copy(statusMessage = "You can only Play On during your play phase!")
+            return
+        }
 
-        // Check if run joker repositioning is required
-        val jokerDestinations = MeldDetector.getLegalJokerDestinations(targetMeld, card)
-        if (jokerDestinations.size > 1) {
-            _pendingJokerMove.value = PendingJokerMove(
-                card = card,
-                targetMeld = targetMeld,
-                options = jokerDestinations
+        val selectedCardId = _selectedCardIds.value.firstOrNull()
+        if (selectedCardId == null) {
+            _gameState.value = state.copy(statusMessage = "Select 1 card from your rack to Play On.")
+            return
+        }
+
+        val card = human.hand.find { it.id == selectedCardId } ?: return
+        _showLayoffDestinationDialog.value = card
+    }
+
+    fun onLayoffToMeld(meldId: String, card: Card) {
+        val state = _gameState.value ?: return
+        val human = state.humanPlayer ?: return
+
+        val targetMeld = state.allTableMelds.find { it.id == meldId } ?: return
+
+        // Check if playing natural card on a run that contains a joker
+        if (targetMeld.type == MeldType.RUN && !card.isWild && targetMeld.cards.any { it.isWild }) {
+            val range = targetMeld.getRunRange() ?: Pair(2, 14)
+            val headRank = Rank.entries.firstOrNull { it.value == range.first - 1 }?.displayName ?: "Low"
+            val tailRank = Rank.entries.firstOrNull { it.value == range.second + 1 }?.displayName ?: "High"
+
+            _pendingJokerReplacement.value = JokerReplacementState(
+                naturalCard = card,
+                meld = targetMeld,
+                headRankName = headRank,
+                tailRankName = tailRank
             )
             return
         }
 
-        val updatedMeld = targetMeld.addCard(card) ?: return
-        val newHand = human.hand.filter { it.id != card.id }
-        val updatedHuman = human.withUpdatedHand(newHand)
-        val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
-        val updatedAllMelds = state.allTableMelds.map { if (it.id == targetMeldId) updatedMeld else it }
+        val (stateAfterPlayOn, success) = DeckEngine.playOnMeld(state, human.id, card, meldId)
+        if (success) {
+            _selectedCardIds.value = emptySet()
+            _showLayoffDestinationDialog.value = null
 
+            val updatedHuman = stateAfterPlayOn.players.find { it.id == human.id }
+            if (updatedHuman != null && updatedHuman.hand.isEmpty()) {
+                handleRoundWon(stateAfterPlayOn, updatedHuman)
+                return
+            }
+
+            val finalState = stateAfterPlayOn.copy(
+                statusMessage = "Played ${card.displayName} on ${targetMeld.ownerName}'s ${targetMeld.type.name}."
+            )
+            _gameState.value = finalState
+            persistState(finalState)
+        }
+    }
+
+    fun onResolveJokerDestination(shiftToHead: Boolean) {
+        val replacementState = _pendingJokerReplacement.value ?: return
+        val state = _gameState.value ?: return
+        val human = state.humanPlayer ?: return
+
+        val (stateAfterPlayOn, success) = DeckEngine.playOnMeld(
+            state,
+            human.id,
+            replacementState.naturalCard,
+            replacementState.meld.id,
+            shiftWildToHead = shiftToHead
+        )
+        _pendingJokerReplacement.value = null
+        _showLayoffDestinationDialog.value = null
         _selectedCardIds.value = emptySet()
-        _showLayoffDialog.value = null
 
-        if (newHand.isEmpty()) {
-            handlePlayerWentOut(human.id, updatedPlayers, state.discardPile, updatedAllMelds)
-            return
+        if (success) {
+            val updatedHuman = stateAfterPlayOn.players.find { it.id == human.id }
+            if (updatedHuman != null && updatedHuman.hand.isEmpty()) {
+                handleRoundWon(stateAfterPlayOn, updatedHuman)
+                return
+            }
+            val finalState = stateAfterPlayOn.copy(
+                statusMessage = "Replaced Joker in ${replacementState.meld.ownerName}'s Run with ${replacementState.naturalCard.displayName}."
+            )
+            _gameState.value = finalState
+            persistState(finalState)
         }
-
-        val updatedState = state.copy(
-            players = updatedPlayers,
-            allTableMelds = updatedAllMelds,
-            gameLogs = state.gameLogs + "You played ${card.displayName} on ${targetMeld.ownerName}'s ${if (targetMeld.type == MeldType.BOOK) "Book" else "Run"}."
-        )
-        _gameState.value = updatedState
-        saveCurrentState()
     }
 
-    fun onConfirmJokerMove(newCards: List<Card>) {
-        val move = _pendingJokerMove.value ?: return
-        val state = _gameState.value
+    // SWAP RACK SLOTS
+    fun onMoveCardInRack(fromRow: Int, fromSlot: Int, toRow: Int, toSlot: Int) {
+        val state = _gameState.value ?: return
         val human = state.humanPlayer ?: return
-
-        val updatedMeld = move.targetMeld.copy(cards = newCards)
-        val newHand = human.hand.filter { it.id != move.card.id }
-        val updatedHuman = human.copy(hand = newHand).reorganizeHandIntoRack()
+        val updatedHuman = DeckEngine.moveCardInRack(human, fromRow, fromSlot, toRow, toSlot)
         val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
-        val updatedAllMelds = state.allTableMelds.map { if (it.id == move.targetMeld.id) updatedMeld else it }
-
-        _pendingJokerMove.value = null
-        _selectedCardIds.value = emptySet()
-        _showLayoffDialog.value = null
-
-        if (newHand.isEmpty()) {
-            handlePlayerWentOut(human.id, updatedPlayers, state.discardPile, updatedAllMelds)
-            return
-        }
-
-        val updatedState = state.copy(
-            players = updatedPlayers,
-            allTableMelds = updatedAllMelds,
-            gameLogs = state.gameLogs + "You played ${move.card.displayName} and repositioned the Joker."
-        )
-        _gameState.value = updatedState
-        saveCurrentState()
+        val newState = state.copy(players = updatedPlayers)
+        _gameState.value = newState
+        persistState(newState)
     }
 
-    fun cancelJokerMove() {
-        _pendingJokerMove.value = null
-    }
+    // ROUND WON / TRANSITION
+    private fun handleRoundWon(state: GameState, winner: Player) {
+        val stateAfterScoring = DeckEngine.calculateEndRoundScores(state, winner.id)
+        _roundWinner.value = winner
+        _gameState.value = stateAfterScoring
+        persistState(stateAfterScoring)
 
-    // RUMMAY CALL HANDLING
-    fun onHumanCallRummay() {
-        val state = _gameState.value
-        val human = state.humanPlayer ?: return
-        val rummay = state.pendingRummay ?: return
-        if (rummay.offenderId == human.id) return
-
-        // Mark human as caller
-        _gameState.update {
-            it.copy(
-                pendingRummay = rummay.copy(callerId = human.id, callerName = human.name)
-            )
+        if (stateAfterScoring.currentLevel >= 7) {
+            _isTournamentFinished.value = true
+            val historyEntry = DeckEngine.createMatchHistoryEntry(stateAfterScoring)
+            preferences.saveMatchHistoryEntry(historyEntry)
+            preferences.clearActiveGame()
+            _matchHistory.value = preferences.loadMatchHistory()
+            _savedMatchState.value = null
         }
     }
 
-    fun onHumanGiveRummayCard(cardToGive: Card) {
-        val state = _gameState.value
-        val human = state.humanPlayer ?: return
-        val rummay = state.pendingRummay ?: return
-        val offender = state.players.find { it.id == rummay.offenderId } ?: return
-
-        val newHumanHand = human.hand.filter { it.id != cardToGive.id }
-        val updatedHuman = human.copy(hand = newHumanHand).reorganizeHandIntoRack()
-        val newOffenderHand = offender.hand + cardToGive
-        val updatedOffender = offender.copy(hand = newOffenderHand).reorganizeHandIntoRack()
-
-        val updatedPlayers = state.players.map {
-            when (it.id) {
-                human.id -> updatedHuman
-                offender.id -> updatedOffender
-                else -> it
-            }
-        }
-
-        _gameState.value = state.copy(
-            players = updatedPlayers,
-            pendingRummay = null,
-            gameLogs = state.gameLogs + "You called RUMMAY on ${offender.name} and gave them ${cardToGive.displayName}!"
-        )
-        saveCurrentState()
-
-        // Advance to next turn
-        val nextIdx = (state.currentTurnPlayerIndex + 1) % state.players.size
-        _gameState.update { it.copy(currentTurnPlayerIndex = nextIdx, currentPhase = TurnPhase.DRAW) }
-        checkAndTriggerAITurn()
-    }
-
-    fun onHumanPassRummay() {
-        val state = _gameState.value
-        val rummay = state.pendingRummay ?: return
-
-        // Advance turn
-        val nextIdx = (state.currentTurnPlayerIndex + 1) % state.players.size
-        _gameState.update {
-            it.copy(
-                pendingRummay = null,
-                currentTurnPlayerIndex = nextIdx,
-                currentPhase = TurnPhase.DRAW
-            )
-        }
-        saveCurrentState()
-        checkAndTriggerAITurn()
-    }
-
-    private fun evaluateAiRummayCall(rummay: PendingRummayCall) {
-        viewModelScope.launch {
-            delay(1200)
-            val state = _gameState.value
-            if (state.pendingRummay == null || state.pendingRummay?.callerId != null) return@launch
-
-            val aiEligible = state.players.filter { it.id != rummay.offenderId && !it.isHuman }
-            val callingAi = aiEligible.firstOrNull { ai ->
-                ai.hand.isNotEmpty()
-            }
-
-            if (callingAi != null) {
-                val cardToGive = callingAi.hand.maxByOrNull { it.points } ?: callingAi.hand.first()
-                val offender = state.players.find { it.id == rummay.offenderId } ?: return@launch
-
-                val newAiHand = callingAi.hand.filter { it.id != cardToGive.id }
-                val updatedAi = callingAi.copy(hand = newAiHand).reorganizeHandIntoRack()
-                val newOffenderHand = offender.hand + cardToGive
-                val updatedOffender = offender.copy(hand = newOffenderHand).reorganizeHandIntoRack()
-
-                val updatedPlayers = state.players.map {
-                    when (it.id) {
-                        callingAi.id -> updatedAi
-                        offender.id -> updatedOffender
-                        else -> it
-                    }
-                }
-
-                _gameState.value = state.copy(
-                    players = updatedPlayers,
-                    pendingRummay = null,
-                    gameLogs = state.gameLogs + "${callingAi.name} CALLED RUMMAY on ${offender.name}!"
-                )
-                saveCurrentState()
-
-                val nextIdx = (state.currentTurnPlayerIndex + 1) % state.players.size
-                _gameState.update { it.copy(currentTurnPlayerIndex = nextIdx, currentPhase = TurnPhase.DRAW) }
-                checkAndTriggerAITurn()
-            } else {
-                _gameState.update { it.copy(pendingRummay = null) }
-                val nextIdx = (state.currentTurnPlayerIndex + 1) % state.players.size
-                _gameState.update { it.copy(currentTurnPlayerIndex = nextIdx, currentPhase = TurnPhase.DRAW) }
-                checkAndTriggerAITurn()
-            }
-        }
-    }
-
-    private fun executeAiBuy(aiId: String, discard: Card) {
-        viewModelScope.launch {
-            delay(1000)
-            val state = _gameState.value
-            val ai = state.players.find { it.id == aiId } ?: return@launch
-            val pendingBuy = state.pendingBuyPriority ?: return@launch
-
-            val (newDeck, penaltyCard, _) = DeckEngine.drawCard(state.drawDeck, state.discardPile)
-            val newDiscards = state.discardPile.dropLast(1)
-            val newHand = ai.hand + listOfNotNull(discard, penaltyCard)
-            val updatedAi = ai.copy(hand = newHand).reorganizeHandIntoRack()
-
-            val updatedPlayers = state.players.map { if (it.id == ai.id) updatedAi else it }
-            val nextTurnIdx = state.players.indexOfFirst { it.id == pendingBuy.nextTurnPlayerId }
-
-            _gameState.value = state.copy(
-                drawDeck = newDeck,
-                discardPile = newDiscards,
-                players = updatedPlayers,
-                pendingBuyPriority = null,
-                currentTurnPlayerIndex = if (nextTurnIdx != -1) nextTurnIdx else (state.currentTurnPlayerIndex + 1) % state.players.size,
-                currentPhase = TurnPhase.DRAW,
-                gameLogs = state.gameLogs + "${ai.name} BOUGHT ${discard.displayName} out-of-turn (+1 penalty card)."
-            )
-            saveCurrentState()
-            checkAndTriggerAITurn()
-        }
-    }
-
-    private fun advanceToNextPlayer(
-        updatedPlayers: List<Player>,
-        newDiscards: List<Card>,
-        allMelds: List<Meld>,
-        logMsg: String
-    ) {
-        val state = _gameState.value
-        val nextIdx = (state.currentTurnPlayerIndex + 1) % updatedPlayers.size
-        val nextPlayer = updatedPlayers[nextIdx]
-
-        // Check if next player is human and top discard is available
-        val topDiscard = newDiscards.lastOrNull()
-        val toYouOffer = if (nextPlayer.isHuman && topDiscard != null) topDiscard else null
-
-        val updatedState = state.copy(
-            players = updatedPlayers,
-            discardPile = newDiscards,
-            allTableMelds = allMelds,
-            currentTurnPlayerIndex = nextIdx,
-            currentPhase = TurnPhase.DRAW,
-            pendingToYouOffer = toYouOffer,
-            gameLogs = state.gameLogs + logMsg
-        )
-        _gameState.value = updatedState
-        saveCurrentState()
-        checkAndTriggerAITurn()
-    }
-
-    private fun handlePlayerWentOut(
-        winnerId: String,
-        currentPlayers: List<Player>,
-        currentDiscards: List<Card>,
-        allMelds: List<Meld>
-    ) {
-        val state = _gameState.value
-        val winner = currentPlayers.find { it.id == winnerId } ?: currentPlayers.first()
-
-        // Calculate penalty points for each player
-        val playersWithScores = currentPlayers.map { player ->
-            val pointsInHand = if (player.id == winnerId) 0 else player.hand.sumOf { it.points }
-            val updatedScores = player.scoresPerLevel + pointsInHand
-            player.copy(scoresPerLevel = updatedScores)
-        }
-
-        val completedLevel = state.currentLevel
-        val isFinalTournament = completedLevel >= 7
-
-        val updatedState = state.copy(
-            players = playersWithScores,
-            discardPile = currentDiscards,
-            allTableMelds = allMelds,
-            roundWinnerIndex = playersWithScores.indexOfFirst { it.id == winnerId },
-            isRoundOver = true,
-            isTournamentOver = isFinalTournament,
-            gameLogs = state.gameLogs + "${winner.name} WENT OUT! (0 pts). Level $completedLevel Completed."
-        )
-        _gameState.value = updatedState
-
-        if (isFinalTournament) {
-            recordTournamentHistory(playersWithScores)
-            preferences.clearSavedGameState()
-            _hasSavedGame.value = false
-        } else {
-            saveCurrentState()
-        }
-    }
-
-    private fun recordTournamentHistory(finalPlayers: List<Player>) {
-        val sorted = finalPlayers.sortedBy { it.totalScore }
-        val winner = sorted.firstOrNull() ?: finalPlayers.first()
-        val human = finalPlayers.find { it.isHuman } ?: finalPlayers.first()
-
-        val entry = MatchHistoryEntry(
-            winnerName = winner.name,
-            winnerScore = winner.totalScore,
-            humanScore = human.totalScore,
-            humanWon = winner.isHuman,
-            finalStandings = sorted.map { FinalStandingItem(name = it.name, score = it.totalScore) }
-        )
-        preferences.saveMatchHistoryEntry(entry)
-        _matchHistoryList.value = preferences.loadMatchHistory()
-    }
-
-    fun onNextLevel() {
-        val state = _gameState.value
+    fun onContinueNextLevel() {
+        val state = _gameState.value ?: return
         if (state.currentLevel >= 7) {
-            _showWinningTrophy.value = true
+            _roundWinner.value = null
+            _isTournamentFinished.value = true
             return
         }
 
         val nextLevel = state.currentLevel + 1
-        val nextDealerIndex = (state.dealerIndex + 1) % state.players.size
-        val newState = startLevelInternal(nextLevel, state.players, nextDealerIndex)
-
-        _gameState.value = newState
-        _selectedCardIds.value = emptySet()
-        saveCurrentState()
-        checkAndTriggerAITurn()
+        val nextRoundState = DeckEngine.startNextLevel(state, nextLevel)
+        _roundWinner.value = null
+        _gameState.value = nextRoundState
+        persistState(nextRoundState)
+        checkTurnState()
     }
 
-    // AI TURN ORCHESTRATION
-    private fun checkAndTriggerAITurn() {
-        val state = _gameState.value
-        if (state.isRoundOver || state.isTournamentOver) return
-        val current = state.currentTurnPlayer
-        if (current.isHuman) return
+    // AI TURN EXECUTION LOOP
+    private fun checkTurnState() {
+        val state = _gameState.value ?: return
+        if (_roundWinner.value != null || _isTournamentFinished.value) return
 
-        aiTurnJob?.cancel()
-        aiTurnJob = viewModelScope.launch {
+        if (!state.isHumanTurn) {
+            runAiTurn()
+        }
+    }
+
+    private fun runAiTurn() {
+        aiLoopJob?.cancel()
+        aiLoopJob = viewModelScope.launch {
+            delay(1000)
+            val state = _gameState.value ?: return@launch
+            if (state.isHumanTurn) return@launch
+
+            val aiPlayer = state.currentPlayer
+            var currentState = state
+
+            // 1. DRAW PHASE
+            val shouldTakeDiscard = if (currentState.topDiscard != null) {
+                AiPlayerEngine.shouldAiTakeDiscard(aiPlayer, currentState.topDiscard!!, currentState.contractLevel, currentState.allTableMelds)
+            } else false
+
+            if (shouldTakeDiscard && currentState.topDiscard != null) {
+                val (stateAfterTake, card) = DeckEngine.takeDiscard(currentState, aiPlayer.id)
+                currentState = stateAfterTake.copy(
+                    currentPhase = TurnPhase.PLAY_OR_DISCARD,
+                    statusMessage = "${aiPlayer.name} took ${card?.displayName} from Discard."
+                )
+            } else {
+                val (stateAfterDraw, _) = DeckEngine.drawCard(currentState, aiPlayer.id)
+                currentState = stateAfterDraw.copy(
+                    currentPhase = TurnPhase.PLAY_OR_DISCARD,
+                    statusMessage = "${aiPlayer.name} drew a card from Stock."
+                )
+            }
+            _gameState.value = currentState
             delay(800)
-            executeAiTurn(current.id)
-        }
-    }
 
-    private suspend fun executeAiTurn(aiId: String) {
-        val state = _gameState.value
-        val ai = state.players.find { it.id == aiId } ?: return
-        if (ai.isHuman || state.isRoundOver) return
-
-        // 1. DRAW PHASE
-        val shouldTakeDiscard = state.discardPile.isNotEmpty() &&
-                AiPlayerEngine.shouldAiTakeDiscard(ai, state.discardPile.last(), state.contractLevel, state.allTableMelds)
-
-        val afterDrawState: GameState
-        val drawnCard: Card
-        if (shouldTakeDiscard) {
-            val discard = state.discardPile.last()
-            val newDiscards = state.discardPile.dropLast(1)
-            val newHand = ai.hand + discard
-            val updatedAi = ai.copy(hand = newHand).reorganizeHandIntoRack()
-            val updatedPlayers = state.players.map { if (it.id == ai.id) updatedAi else it }
-            afterDrawState = state.copy(
-                discardPile = newDiscards,
-                players = updatedPlayers,
-                currentPhase = TurnPhase.PLAY_OR_DISCARD,
-                gameLogs = state.gameLogs + "${ai.name} took ${discard.displayName} from discard."
-            )
-            drawnCard = discard
-        } else {
-            val (newDeck, card, newDiscards) = DeckEngine.drawCard(state.drawDeck, state.discardPile)
-            if (card == null) return
-            val newHand = ai.hand + card
-            val updatedAi = ai.copy(hand = newHand).reorganizeHandIntoRack()
-            val updatedPlayers = state.players.map { if (it.id == ai.id) updatedAi else it }
-            afterDrawState = state.copy(
-                drawDeck = newDeck,
-                discardPile = newDiscards,
-                players = updatedPlayers,
-                currentPhase = TurnPhase.PLAY_OR_DISCARD,
-                gameLogs = state.gameLogs + "${ai.name} drew 1 card from stock."
-            )
-            drawnCard = card
-        }
-
-        _gameState.value = afterDrawState
-        saveCurrentState()
-        delay(900)
-
-        // 2. PLAY PHASE (Check Go Down)
-        var currentAi = afterDrawState.players.find { it.id == aiId } ?: return
-        var currentAllMelds = afterDrawState.allTableMelds
-        var currentPlayers = afterDrawState.players
-
-        if (!currentAi.isDown) {
-            val possibleMelds = MeldDetector.findValidContract(
-                currentAi.hand,
-                afterDrawState.contractLevel,
-                currentAi.id,
-                currentAi.name
-            )
-            if (possibleMelds != null) {
-                val usedCardIds = possibleMelds.flatMap { it.cards }.map { it.id }.toSet()
-                val remainingHand = currentAi.hand.filter { !usedCardIds.contains(it.id) }
-                currentAi = currentAi.copy(hand = remainingHand, isDown = true).reorganizeHandIntoRack()
-                currentAllMelds = currentAllMelds + possibleMelds
-                currentPlayers = currentPlayers.map { if (it.id == ai.id) currentAi else it }
-
-                _gameState.value = afterDrawState.copy(
-                    players = currentPlayers,
-                    allTableMelds = currentAllMelds,
-                    gameLogs = afterDrawState.gameLogs + "${ai.name} went DOWN with ${afterDrawState.contractLevel.shortRequirement}!"
+            // 2. CHECK GO DOWN
+            var updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: return@launch
+            if (!updatedAi.isDown) {
+                val candidateMelds = MeldDetector.findValidContract(
+                    updatedAi.hand,
+                    currentState.contractLevel,
+                    updatedAi.id,
+                    updatedAi.name
                 )
-                saveCurrentState()
-                delay(800)
-
-                if (remainingHand.isEmpty()) {
-                    handlePlayerWentOut(ai.id, currentPlayers, afterDrawState.discardPile, currentAllMelds)
-                    return
+                if (candidateMelds != null) {
+                    val (stateAfterDown, _) = DeckEngine.goDown(currentState, updatedAi.id, candidateMelds)
+                    currentState = stateAfterDown.copy(
+                        statusMessage = "${updatedAi.name} WENT DOWN!"
+                    )
+                    _gameState.value = currentState
+                    updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: return@launch
+                    delay(800)
                 }
             }
-        }
 
-        // 3. PLAY ON / LAYOFFS (If AI is down)
-        if (currentAi.isDown && currentAi.hand.isNotEmpty()) {
-            val playableMoves = AiPlayerEngine.findAiPlayOnMoves(currentAi, currentAllMelds)
-            for (move in playableMoves) {
-                if (currentAi.hand.none { it.id == move.card.id }) continue
-                val targetMeld = currentAllMelds.find { it.id == move.targetMeldId } ?: continue
-                val updatedMeld = targetMeld.addCard(move.card) ?: continue
-                val newHand = currentAi.hand.filter { it.id != move.card.id }
-                currentAi = currentAi.copy(hand = newHand).reorganizeHandIntoRack()
-                currentAllMelds = currentAllMelds.map { if (it.id == move.targetMeldId) updatedMeld else it }
-                currentPlayers = currentPlayers.map { if (it.id == ai.id) currentAi else it }
-
-                _gameState.value = _gameState.value.copy(
-                    players = currentPlayers,
-                    allTableMelds = currentAllMelds,
-                    gameLogs = _gameState.value.gameLogs + "${ai.name} played ${move.card.displayName} on a meld."
-                )
-                saveCurrentState()
-                delay(600)
-
-                if (newHand.isEmpty()) {
-                    handlePlayerWentOut(ai.id, currentPlayers, afterDrawState.discardPile, currentAllMelds)
-                    return
+            // 3. CHECK PLAY ON
+            if (updatedAi.isDown) {
+                val moves = AiPlayerEngine.findAiPlayOnMoves(updatedAi, currentState.allTableMelds)
+                for (move in moves) {
+                    val (stateAfterLayoff, success) = DeckEngine.playOnMeld(currentState, updatedAi.id, move.card, move.targetMeldId)
+                    if (success) {
+                        currentState = stateAfterLayoff.copy(
+                            statusMessage = "${updatedAi.name} played ${move.card.displayName} on a meld."
+                        )
+                        _gameState.value = currentState
+                        updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: break
+                        if (updatedAi.hand.isEmpty()) {
+                            handleRoundWon(currentState, updatedAi)
+                            return@launch
+                        }
+                        delay(600)
+                    }
                 }
             }
-        }
 
-        // 4. DISCARD PHASE
-        val discardCard = AiPlayerEngine.selectAiDiscard(currentAi, afterDrawState.contractLevel, currentAllMelds)
-        val finalHand = currentAi.hand.filter { it.id != discardCard.id }
-        currentAi = currentAi.copy(hand = finalHand).reorganizeHandIntoRack()
-        currentPlayers = currentPlayers.map { if (it.id == ai.id) currentAi else it }
-        val newDiscards = afterDrawState.discardPile + discardCard
-
-        if (finalHand.isEmpty()) {
-            handlePlayerWentOut(ai.id, currentPlayers, newDiscards, currentAllMelds)
-            return
-        }
-
-        // Check if Rummay eligible
-        val isRummay = currentAllMelds.any { it.canAddCard(discardCard) }
-        if (isRummay) {
-            val rummayOffer = PendingRummayCall(
-                discardedCard = discardCard,
-                offenderId = ai.id,
-                offenderName = ai.name,
-                eligibleMelds = currentAllMelds.filter { it.canAddCard(discardCard) }
-            )
-            _gameState.value = _gameState.value.copy(
-                players = currentPlayers,
-                discardPile = newDiscards,
-                pendingRummay = rummayOffer,
-                gameLogs = _gameState.value.gameLogs + "${ai.name} discarded ${discardCard.displayName} (Rummay Opportunity!)."
-            )
-            saveCurrentState()
-            evaluateAiRummayCall(rummayOffer)
-            return
-        }
-
-        // Check if Human can buy out-of-turn
-        val human = currentPlayers.find { it.isHuman }
-        val nextTurnPlayer = currentPlayers[(afterDrawState.currentTurnPlayerIndex + 1) % currentPlayers.size]
-        if (human != null && nextTurnPlayer.id != human.id) {
-            val pendingBuy = PendingBuyPriority(
-                discard = discardCard,
-                discarderId = ai.id,
-                discarderName = ai.name,
-                nextTurnPlayerId = nextTurnPlayer.id,
-                interestedBuyerIds = emptyList()
-            )
-            _gameState.value = _gameState.value.copy(
-                players = currentPlayers,
-                discardPile = newDiscards,
-                pendingBuyPriority = pendingBuy,
-                gameLogs = _gameState.value.gameLogs + "${ai.name} discarded ${discardCard.displayName}."
-            )
-            saveCurrentState()
-            return
-        }
-
-        // Turn advance
-        advanceToNextPlayer(currentPlayers, newDiscards, currentAllMelds, "${ai.name} discarded ${discardCard.displayName}.")
-    }
-
-    // Drag and Drop Handlers
-    fun onCardDragStart(card: Card, rowIndex: Int, slotIndex: Int, initialGlobalPos: Offset) {
-        _activeDraggedCard.value = card
-        _dragGlobalPosition.value = initialGlobalPos
-    }
-
-    fun onCardDragMove(delta: Offset) {
-        val current = _dragGlobalPosition.value ?: return
-        val newPos = current + delta
-        _dragGlobalPosition.value = newPos
-        _hoveredTarget.value = dragRegistry.findTarget(newPos)
-    }
-
-    fun onCardDragEnd() {
-        val card = _activeDraggedCard.value
-        val target = _hoveredTarget.value
-        val state = _gameState.value
-        val human = state.humanPlayer
-
-        if (card != null && target != null && human != null) {
-            when (target) {
-                is DragDropTarget.DiscardPile -> {
-                    if (state.currentTurnPlayer.id == human.id && state.currentPhase == TurnPhase.PLAY_OR_DISCARD) {
-                        onDiscardCard(card.id)
-                    }
-                }
-                is DragDropTarget.Meld -> {
-                    if (human.isDown) {
-                        onPlayOnSingleCard(card, target.meldId)
-                    }
-                }
-                is DragDropTarget.TableMeld -> {
-                    if (human.isDown) {
-                        onPlayOnSingleCard(card, target.meldId)
-                    }
-                }
-                is DragDropTarget.RackSlot -> {
-                    reorderCardInRack(card, target.rowIndex, target.slotIndex)
-                }
-                is DragDropTarget.MeldWorkspaceSlot -> {
-                    // Handled within MeldBuilderDialog
-                }
-                is DragDropTarget.StockPile -> { /* Not a drop target */ }
-            }
-        }
-
-        _activeDraggedCard.value = null
-        _dragGlobalPosition.value = null
-        _hoveredTarget.value = null
-    }
-
-    fun onCardDragCancel() {
-        _activeDraggedCard.value = null
-        _dragGlobalPosition.value = null
-        _hoveredTarget.value = null
-    }
-
-    private fun reorderCardInRack(card: Card, targetRow: Int, targetSlot: Int) {
-        _gameState.update { state ->
-            val human = state.humanPlayer ?: return@update state
-            val updatedHuman = human.moveCardInRack(card.id, targetRow, targetSlot)
-            val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
-            state.copy(players = updatedPlayers, sortMode = SortMode.CUSTOM)
+            // 4. DISCARD PHASE
+            val discardCard = AiPlayerEngine.chooseDiscard(updatedAi, currentState.contractLevel, currentState.allTableMelds)
+            executeDiscard(currentState, updatedAi, discardCard)
         }
     }
 
-    // Modal Toggles
-    fun openScoreboard() { _showScoreboard.value = true }
-    fun closeScoreboard() { _showScoreboard.value = false }
-    fun openDeckStats() { _showDeckStats.value = true }
-    fun closeDeckStats() { _showDeckStats.value = false }
-    fun openRules() { _showRules.value = true }
-    fun closeRules() { _showRules.value = false }
-    fun openMeldBuilder() { _showMeldBuilder.value = true }
-    fun closeMeldBuilder() { _showMeldBuilder.value = false }
-    fun openLayoffDialog(card: Card) { _showLayoffDialog.value = card }
-    fun closeLayoffDialog() { _showLayoffDialog.value = null }
-    fun openMatchHistory() { _showMatchHistory.value = true }
-    fun closeMatchHistory() { _showMatchHistory.value = false }
-    fun closeWinningTrophy() { _showWinningTrophy.value = false }
+    private fun persistState(state: GameState) {
+        preferences.saveActiveGame(state)
+        _savedMatchState.value = state
+    }
+
+    // DIALOG VISIBILITY CONTROLS
+    fun setPauseDialogVisible(visible: Boolean) { _showPauseDialog.value = visible }
+    fun setScoreboardVisible(visible: Boolean) { _showScoreboard.value = visible }
+    fun setDeckStatsVisible(visible: Boolean) { _showDeckStats.value = visible }
+    fun setRulesVisible(visible: Boolean) { _showRules.value = visible }
+    fun setHistoryDialogVisible(visible: Boolean) { _showHistoryDialog.value = visible }
+    fun setMeldBuilderVisible(visible: Boolean) { _showMeldBuilder.value = visible }
+    fun dismissLayoffDialog() { _showLayoffDestinationDialog.value = null }
+    fun dismissJokerDialog() { _pendingJokerReplacement.value = null }
 }
+
+data class JokerReplacementState(
+    val naturalCard: Card,
+    val meld: Meld,
+    val headRankName: String,
+    val tailRankName: String
+)
+
+data class RummayCallState(
+    val discardedCard: Card,
+    val offender: Player,
+    val caller: Player?,
+    val isHumanCaller: Boolean,
+    val isHumanOffender: Boolean,
+    val humanPlayer: Player?
+)

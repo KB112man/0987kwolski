@@ -21,7 +21,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.model.ContractLevel
 import com.example.model.Player
 import com.example.ui.theme.*
 
@@ -163,7 +162,6 @@ fun ScoreboardDialog(
                                     )
                                 }
                             }
-
                             for (lvl in 1..7) {
                                 val score = player.scoresPerLevel.getOrNull(lvl - 1)
                                 Text(
@@ -175,7 +173,6 @@ fun ScoreboardDialog(
                                     modifier = Modifier.weight(1f)
                                 )
                             }
-
                             Text(
                                 text = "${player.totalScore}",
                                 color = if (player.isHuman) EmeraldAccentLight else Color.White,

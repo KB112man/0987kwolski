@@ -68,17 +68,15 @@ enum class ContractLevel(
         dealCount = 15,
         requiredBookSizes = emptyList(),
         requiredRunSizes = listOf(4, 4, 4),
-        title = "Level 7: 3 Runs (min 4 each) – No Discard",
+        title = "Level 7: 3 Runs (min 4 each) - No Discard",
         shortRequirement = "3 Runs (No Discard)",
-        description = "Deal 15 cards. Contract: 3 Runs (min 4 each, natural > wild). Winning Trophy Level – No Discard."
+        description = "Deal 15 cards. Contract: 3 Runs (min 4 each, natural > wild). Winning Trophy Level - No Discard."
     );
 
     val noDiscard: Boolean
         get() = this == LEVEL_7
-
     val requiredBooks: Int
         get() = requiredBookSizes.size
-
     val requiredRuns: Int
         get() = requiredRunSizes.size
 

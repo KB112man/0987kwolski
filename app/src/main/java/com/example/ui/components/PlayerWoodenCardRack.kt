@@ -77,10 +77,10 @@ fun PlayerWoodenCardRack(
 
     val woodRackGradient = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF5E3013), // highlighted top bevel
-            Color(0xFF3B1C0A), // rich wood body
-            Color(0xFF220E04), // deep shadow
-            Color(0xFF120601)  // foundation
+            Color(0xFF5E3013),
+            Color(0xFF3B1C0A),
+            Color(0xFF220E04),
+            Color(0xFF120601)
         )
     )
 
@@ -97,7 +97,7 @@ fun PlayerWoodenCardRack(
             .padding(horizontal = 6.dp, vertical = 6.dp)
             .testTag("player_wooden_card_rack")
     ) {
-        // 1. 2-TIER STEPPED WOODEN CARD RACK (Fixed 10-column slot layout)
+        // 1. 2-TIER STEPPED WOODEN CARD RACK (10-column slot layout)
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -138,7 +138,7 @@ fun PlayerWoodenCardRack(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // 2. ACTION BUTTONS BAR (Exact 4 controls matching reference image)
+        // 2. ACTION BUTTONS BAR (Matches reference layout)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -146,7 +146,7 @@ fun PlayerWoodenCardRack(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. AUTO SORT TOGGLE
+            // 1. AUTO SORT
             Surface(
                 modifier = Modifier
                     .weight(1f)
@@ -205,85 +205,8 @@ fun PlayerWoodenCardRack(
                 }
             }
 
-            // 2. BUY BUTTON
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(46.dp)
-                    .shadow(if (canBuy) 6.dp else 2.dp, RoundedCornerShape(6.dp))
-                    .border(
-                        1.dp,
-                        if (canBuy) Color(0xFF4ADE80) else Color(0xFF1E3A25),
-                        RoundedCornerShape(6.dp)
-                    )
-                    .clickable(enabled = canBuy && onBuyClicked != null) {
-                        onBuyClicked?.invoke()
-                    }
-                    .testTag("btn_action_buy"),
-                color = if (canBuy) Color(0xFF15803D) else Color(0xFF0A2213),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "BUY",
-                        color = if (canBuy) Color.White else TextMuted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.5.sp
-                    )
-                    Text(
-                        text = "Buy discard + 1",
-                        color = if (canBuy) Color(0xFFDCFCE7) else Color(0xFF4B6354),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Normal
-                    )
-                }
-            }
-
-            // 3. DISCARD BUTTON
-            val isDiscardActive = isPlayerTurn && isPlayOrDiscardPhase && canDiscard
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(46.dp)
-                    .shadow(if (isDiscardActive) 6.dp else 2.dp, RoundedCornerShape(6.dp))
-                    .border(
-                        1.dp,
-                        if (isDiscardActive) Color(0xFFFBBF24) else Color(0xFF452408),
-                        RoundedCornerShape(6.dp)
-                    )
-                    .clickable(enabled = isDiscardActive) { onDiscardClicked() }
-                    .testTag("btn_action_discard"),
-                color = if (isDiscardActive) Color(0xFFB45309) else Color(0xFF2A1505),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "DISCARD",
-                        color = if (isDiscardActive) Color.White else TextMuted,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.5.sp
-                    )
-                    Text(
-                        text = "Discard a card",
-                        color = if (isDiscardActive) Color(0xFFFEF3C7) else Color(0xFF785434),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Normal
-                    )
-                }
-            }
-
-            // 4. PLAY ON BUTTON
-            val canPlayOn = player.isDown && isPlayerTurn && isPlayOrDiscardPhase
+            // 2. PLAY ON
+            val canPlayOn = player.isDown && isPlayerTurn && isPlayOrDiscardPhase && selectedCardIds.size == 1
             Surface(
                 modifier = Modifier
                     .weight(1f)
@@ -294,7 +217,7 @@ fun PlayerWoodenCardRack(
                         if (canPlayOn) Color(0xFF4ADE80) else Color(0xFF2E2620),
                         RoundedCornerShape(6.dp)
                     )
-                    .clickable(enabled = onPlayOnClicked != null) {
+                    .clickable {
                         onPlayOnClicked?.invoke()
                     }
                     .testTag("btn_action_play_on"),
@@ -314,11 +237,127 @@ fun PlayerWoodenCardRack(
                         letterSpacing = 0.5.sp
                     )
                     Text(
-                        text = if (player.isDown) "Select 1 card" else "Down required",
+                        text = when {
+                            !player.isDown -> "Down required"
+                            selectedCardIds.size == 1 -> "Tap to layoff"
+                            else -> "Select 1 card"
+                        },
                         color = if (canPlayOn) Color(0xFFDCFCE7) else Color(0xFF64748B),
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Normal
                     )
+                }
+            }
+
+            // 3. DISCARD
+            val isDiscardActive = isPlayerTurn && isPlayOrDiscardPhase && canDiscard
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .shadow(if (isDiscardActive) 6.dp else 2.dp, RoundedCornerShape(6.dp))
+                    .border(
+                        1.dp,
+                        if (isDiscardActive) Color(0xFFFBBF24) else Color(0xFF452408),
+                        RoundedCornerShape(6.dp)
+                    )
+                    .clickable { onDiscardClicked() }
+                    .testTag("btn_action_discard"),
+                color = if (isDiscardActive) Color(0xFFB45309) else Color(0xFF2A1505),
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "DISCARD",
+                        color = if (isDiscardActive) Color.White else TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = if (selectedCardIds.size == 1) "Discard card" else "Select 1 card",
+                        color = if (isDiscardActive) Color(0xFFFEF3C7) else Color(0xFF785434),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Normal
+                    )
+                }
+            }
+
+            // 4. GOING DOWN (Or BUY if priority is active)
+            if (canBuy && onBuyClicked != null) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1.05f)
+                        .height(46.dp)
+                        .shadow(6.dp, RoundedCornerShape(6.dp))
+                        .border(1.dp, Color(0xFF4ADE80), RoundedCornerShape(6.dp))
+                        .clickable { onBuyClicked() }
+                        .testTag("btn_action_buy"),
+                    color = Color(0xFF15803D),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "BUY",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "Buy discard + 1",
+                            color = Color(0xFFDCFCE7),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Normal
+                        )
+                    }
+                }
+            } else {
+                val isGoDownEnabled = !player.isDown && isPlayerTurn && isPlayOrDiscardPhase
+                Surface(
+                    modifier = Modifier
+                        .weight(1.05f)
+                        .height(46.dp)
+                        .shadow(if (canGoDown) 6.dp else 2.dp, RoundedCornerShape(6.dp))
+                        .border(
+                            1.dp,
+                            if (canGoDown) Color(0xFFEF4444) else Color(0xFF451812),
+                            RoundedCornerShape(6.dp)
+                        )
+                        .clickable(enabled = isGoDownEnabled || !player.isDown) {
+                            onGoDownClicked()
+                        }
+                        .testTag("btn_action_going_down"),
+                    color = if (canGoDown) Color(0xFF7F1D1D) else Color(0xFF280E0B),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "GOING DOWN",
+                            color = if (canGoDown) Color.White else Color(0xFFD18A8A),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.3.sp
+                        )
+                        Text(
+                            text = if (canGoDown) "Ready to Meld!" else "Go down / Meld",
+                            color = if (canGoDown) Color(0xFFFEE2E2) else Color(0xFF8A5555),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Normal
+                        )
+                    }
                 }
             }
         }
@@ -369,7 +408,6 @@ private fun TieredWoodenShelfRow(
                 .padding(horizontal = 2.dp, vertical = 2.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Exactly 10 slots side by side spanning the full width
             Row(
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -456,7 +494,7 @@ private fun TieredWoodenShelfRow(
                                 )
                             }
                         } else {
-                            // Empty Shelf Slot Groove (visible recessed well)
+                            // Empty Shelf Slot Groove
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()

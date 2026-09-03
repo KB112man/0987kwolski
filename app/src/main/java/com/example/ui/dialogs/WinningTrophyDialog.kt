@@ -9,8 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.MilitaryTech
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,97 +25,74 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.model.Card
-import com.example.model.ContractLevel
 import com.example.model.Player
-import com.example.ui.components.PlayingCardView
 import com.example.ui.theme.*
 
 @Composable
 fun WinningTrophyDialog(
     players: List<Player>,
-    tournamentName: String = "Tournament Cup",
-    winningRuns: List<List<Card>> = emptyList(),
-    onReturnToMenu: () -> Unit
+    onPlayAgain: () -> Unit,
+    onBackToMainMenu: () -> Unit
 ) {
-    val sorted = players.sortedBy { it.totalScore }
-    val winner = sorted.firstOrNull() ?: players.first()
+    val sortedPlayers = players.sortedBy { it.totalScore }
+    val winner = sortedPlayers.firstOrNull() ?: players.first()
+    val humanPlayer = players.find { it.isHuman }
     val isHumanWinner = winner.isHuman
-    val humanIndex = sorted.indexOfFirst { it.isHuman }
-    val humanRank = if (humanIndex >= 0) humanIndex + 1 else 4
-    val humanPlayer = players.firstOrNull { it.isHuman } ?: Player(name = "You", isHuman = true)
 
-    val (title, subtitle) = when (humanRank) {
-        1 -> "GRAND CHAMPION" to "Winner of the 7-Contract Championship"
-        2 -> "CHAMPIONSHIP CONTENDER" to "Runner-Up Commendation"
-        3 -> "CONTRACT MASTER" to "7 Contracts Conquered"
-        else -> "RUMMAY! CHALLENGER" to "Tournament Completion"
-    }
-
-    val trophyGradient = if (isHumanWinner) {
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFFFFDF00),
-                Color(0xFFD4AF37),
-                Color(0xFF996515),
-                Color(0xFF5C3A08)
-            )
+    val trophyGradient = Brush.verticalGradient(
+        listOf(
+            Color(0xFFFFDF00),
+            Color(0xFFD4AF37),
+            Color(0xFF996515)
         )
-    } else {
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFFCBD5E1),
-                Color(0xFF94A3B8),
-                Color(0xFF475569),
-                Color(0xFF1E293B)
-            )
-        )
-    }
+    )
 
     Dialog(
-        onDismissRequest = { /* Must click button */ },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        onDismissRequest = { },
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.90f)
-                .shadow(28.dp, RoundedCornerShape(16.dp))
-                .border(2.dp, GoldPlaqueBorder, RoundedCornerShape(16.dp))
+                .fillMaxWidth(0.96f)
+                .fillMaxHeight(0.92f)
+                .shadow(32.dp, RoundedCornerShape(20.dp))
+                .border(2.dp, GoldPlaqueBorder, RoundedCornerShape(20.dp))
                 .testTag("dialog_winning_trophy"),
             color = Color(0xFF140802),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(20.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Foreground Championship Trophy Icon Container
+                // Trophy Icon
                 Box(
                     modifier = Modifier
-                        .size(76.dp)
-                        .shadow(12.dp, CircleShape)
+                        .size(72.dp)
                         .background(trophyGradient, CircleShape)
-                        .border(2.dp, if (isHumanWinner) Color(0xFFFFF7ED) else Color(0xFFE2E8F0), CircleShape),
+                        .shadow(12.dp, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isHumanWinner) Icons.Default.EmojiEvents else Icons.Default.MilitaryTech,
-                        contentDescription = "Trophy",
-                        tint = if (isHumanWinner) Color(0xFF2C1406) else Color(0xFF0F172A),
-                        modifier = Modifier.size(48.dp)
+                        imageVector = Icons.Default.EmojiEvents,
+                        contentDescription = "Grand Champion Trophy",
+                        tint = Color.Black,
+                        modifier = Modifier.size(46.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
                 Text(
-                    text = title,
+                    text = "7-LEVEL TOURNAMENT CHAMPION",
                     color = GoldPlaqueText,
-                    fontSize = 20.sp,
+                    fontSize = 17.sp,
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 1.sp,
@@ -124,206 +100,65 @@ fun WinningTrophyDialog(
                 )
 
                 Text(
-                    text = subtitle,
-                    color = Color(0xFFFFF7ED),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 2.dp)
+                    text = if (isHumanWinner) "CONGRATULATIONS! YOU WON THE TOURNAMENT!" else "${winner.name} IS THE CHAMPION!",
+                    color = if (isHumanWinner) EmeraldAccentLight else Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // SEVEN-CONTRACT JOURNEY PRESENTATION
                 Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, GoldPlaqueBorder.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
-                    color = Color(0xFF1A0C05),
-                    shape = RoundedCornerShape(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF1E0E05),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPlaqueBorder.copy(alpha = 0.6f))
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            text = "7-CONTRACT JOURNEY COMPLETED",
-                            color = GoldPlaqueText,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 0.5.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            ContractLevel.entries.forEach { level ->
-                                val isL7 = level.levelNumber == 7
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Surface(
-                                        color = if (isL7) Color(0xFFB45309) else Color(0xFF0F2E1B),
-                                        border = androidx.compose.foundation.BorderStroke(
-                                            0.75.dp,
-                                            if (isL7) GoldPlaqueBorder else Color(0xFF22C55E)
-                                        ),
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "L${level.levelNumber}",
-                                            color = Color.White,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Black,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = level.shortRequirement.take(6),
-                                        color = TextMuted,
-                                        fontSize = 7.5.sp,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // LEVEL 7 THREE RUNS SHOWCASE IF AVAILABLE
-                if (winningRuns.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, Color(0xFFF59E0B).copy(alpha = 0.6f), RoundedCornerShape(8.dp)),
-                        color = Color(0xFF200F05),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp)
-                        ) {
-                            Text(
-                                text = "LEVEL 7 WINNING 3 RUNS (NO DISCARD)",
-                                color = GoldPlaqueText,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Black,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            winningRuns.forEachIndexed { idx, runCards ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 2.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Run ${idx + 1}: ",
-                                        color = GoldPlaqueBorder,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    runCards.forEach { c ->
-                                        PlayingCardView(
-                                            card = c,
-                                            cardWidth = 24.dp,
-                                            cardHeight = 34.dp,
-                                            showPointsBadge = false
-                                        )
-                                        Spacer(modifier = Modifier.width(2.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Plaque of Standings
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(6.dp, RoundedCornerShape(10.dp))
-                        .border(1.2.dp, GoldPlaqueBorder.copy(alpha = 0.8f), RoundedCornerShape(10.dp)),
-                    color = Color(0xFF1C0D05),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp),
+                            .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             text = "FINAL TOURNAMENT STANDINGS",
-                            color = GoldPlaqueText,
+                            color = GoldPlaqueSubText,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
-                            letterSpacing = 0.5.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
+                            letterSpacing = 0.5.sp
                         )
-
-                        sorted.forEachIndexed { rank, player ->
-                            val isWinnerRank = rank == 0
+                        sortedPlayers.forEachIndexed { rank, p ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
-                                        if (isWinnerRank) Color(0x33D4AF37) else Color(0x18000000),
-                                        RoundedCornerShape(6.dp)
+                                        if (p.id == winner.id) Color(0x33D4AF37) else Color.Transparent,
+                                        RoundedCornerShape(4.dp)
                                     )
-                                    .border(
-                                        0.75.dp,
-                                        if (isWinnerRank) GoldPlaqueBorder else Color(0x225A2E0F),
-                                        RoundedCornerShape(6.dp)
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                                    .padding(horizontal = 6.dp, vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    if (isWinnerRank) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (rank == 0) {
                                         Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = "1st Place",
+                                            imageVector = Icons.Default.Stars,
+                                            contentDescription = null,
                                             tint = GoldPlaqueText,
-                                            modifier = Modifier.size(15.dp)
+                                            modifier = Modifier.size(16.dp)
                                         )
-                                    } else {
-                                        Text(
-                                            text = "#${rank + 1}",
-                                            color = TextSecondary,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
                                     }
                                     Text(
-                                        text = player.name,
-                                        color = if (player.isHuman) EmeraldAccentLight else Color(0xFFFFF7ED),
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isWinnerRank) FontWeight.Black else FontWeight.Bold
+                                        text = "${rank + 1}. ${p.name}" + (if (p.isHuman) " (You)" else ""),
+                                        color = if (p.isHuman) EmeraldAccentLight else Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (rank == 0 || p.isHuman) FontWeight.Bold else FontWeight.Normal
                                     )
                                 }
                                 Text(
-                                    text = "${player.totalScore} pts",
-                                    color = if (isWinnerRank) GoldPlaqueText else Color(0xFFCBD5E1),
-                                    fontSize = 11.5.sp,
+                                    text = "${p.totalScore} total pts",
+                                    color = if (rank == 0) GoldPlaqueText else TextSecondary,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Black
                                 )
                             }
@@ -331,26 +166,72 @@ fun WinningTrophyDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                if (humanPlayer != null) {
+                    val humanRank = sortedPlayers.indexOfFirst { it.id == humanPlayer.id } + 1
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color(0xFF0F2B1A),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldAccentLight.copy(alpha = 0.6f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Your Tournament Performance",
+                                color = EmeraldAccentLight,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Finished #$humanRank of ${players.size} with ${humanPlayer.totalScore} points",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Button(
-                    onClick = onReturnToMenu,
+                    onClick = onPlayAgain,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
-                        .shadow(8.dp, RoundedCornerShape(10.dp))
-                        .testTag("btn_return_to_main_menu"),
+                        .height(46.dp)
+                        .shadow(4.dp, RoundedCornerShape(8.dp))
+                        .testTag("btn_play_again"),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = GoldPlaqueText,
                         contentColor = Color.Black
                     ),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "RETURN TO MAIN MENU",
+                        text = "PLAY AGAIN (NEW TOURNAMENT)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onBackToMainMenu,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .testTag("btn_trophy_main_menu"),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFFFF7ED)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldPlaqueBorder.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "MAIN MENU",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.5.sp
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }

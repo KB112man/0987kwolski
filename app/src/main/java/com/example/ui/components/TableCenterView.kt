@@ -11,7 +11,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -40,7 +39,6 @@ fun TableCenterView(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // CENTER STOCK & DISCARD PILES
         Row(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -62,8 +60,8 @@ fun TableCenterView(
                         )
                 ) {
                     CardBackView(
-                        cardWidth = 58.dp,
-                        cardHeight = 82.dp,
+                        cardWidth = 56.dp,
+                        cardHeight = 80.dp,
                         isGreenPattern = true,
                         count = null,
                         onClick = if (isPlayerTurn && isDrawPhase) onStockClicked else null
@@ -104,7 +102,6 @@ fun TableCenterView(
                     isPlayerTurn && isDrawPhase -> Color(0xFF22C55E)
                     else -> GoldPlaqueBorder.copy(alpha = 0.5f)
                 }
-
                 if (topDiscard != null) {
                     Box(
                         modifier = Modifier
@@ -117,8 +114,8 @@ fun TableCenterView(
                     ) {
                         PlayingCardView(
                             card = topDiscard,
-                            cardWidth = 58.dp,
-                            cardHeight = 82.dp,
+                            cardWidth = 56.dp,
+                            cardHeight = 80.dp,
                             onClick = if (isPlayerTurn && isDrawPhase) onDiscardClicked else null,
                             showPointsBadge = false
                         )
@@ -126,8 +123,8 @@ fun TableCenterView(
                 } else {
                     Box(
                         modifier = Modifier
-                            .width(58.dp)
-                            .height(82.dp)
+                            .width(56.dp)
+                            .height(80.dp)
                             .border(1.dp, GoldPlaqueBorder.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                             .background(Color(0xFF120703), RoundedCornerShape(6.dp)),
                         contentAlignment = Alignment.Center

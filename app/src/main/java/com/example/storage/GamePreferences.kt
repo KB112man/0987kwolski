@@ -41,6 +41,7 @@ class GamePreferences(context: Context) {
     }
 
     fun saveGameState(state: GameState) = saveGame(state)
+    fun saveActiveGame(state: GameState) = saveGame(state)
 
     fun loadGame(): GameState? {
         if (!hasSavedGame()) return null
@@ -54,6 +55,7 @@ class GamePreferences(context: Context) {
     }
 
     fun loadGameState(): GameState? = loadGame()
+    fun loadActiveGame(): GameState? = loadGame()
 
     fun clearSavedGame() {
         prefs.edit()
@@ -63,6 +65,7 @@ class GamePreferences(context: Context) {
     }
 
     fun clearSavedGameState() = clearSavedGame()
+    fun clearActiveGame() = clearSavedGame()
 
     fun hasSavedGame(): Boolean {
         return prefs.getBoolean("has_saved_game", false)

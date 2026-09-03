@@ -74,27 +74,30 @@ class DragDropRegistry {
     }
 
     fun findTarget(position: Offset): DragDropTarget? {
+        // 1. Check all melds first (for play on / lay off drops)
+        for ((meldId, bounds) in meldBounds) {
+            val expanded = bounds.inflate(20f)
+            if (expanded.contains(position)) {
+                return DragDropTarget.Meld(meldId)
+            }
+        }
+
+        // 2. Check discard pile
         discardBounds?.let { rect ->
-            val expanded = rect.inflate(22f)
+            val expanded = rect.inflate(24f)
             if (expanded.contains(position)) {
                 return DragDropTarget.DiscardPile
             }
         }
 
-        for ((meldId, bounds) in meldBounds) {
-            val expanded = bounds.inflate(16f)
-            if (expanded.contains(position)) {
-                return DragDropTarget.TableMeld(meldId)
-            }
-        }
-
+        // 3. Check rack slots
         for ((rowIndex, rowRect) in rowBounds) {
-            val expanded = rowRect.inflate(18f)
+            val expanded = rowRect.inflate(20f)
             if (expanded.contains(position)) {
                 val slotMap = slotBoundsInRows[rowIndex] ?: emptyMap()
                 if (slotMap.isNotEmpty()) {
                     for ((slotIdx, sRect) in slotMap) {
-                        if (sRect.inflate(6f).contains(position)) {
+                        if (sRect.inflate(8f).contains(position)) {
                             return DragDropTarget.RackSlot(rowIndex, slotIdx)
                         }
                     }
@@ -119,7 +122,6 @@ class DragDropRegistry {
                 return DragDropTarget.StockPile
             }
         }
-
         return null
     }
 

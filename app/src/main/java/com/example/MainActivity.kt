@@ -2,71 +2,94 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.example.ui.GameViewModel
-import com.example.ui.dialogs.DeckStatsDialog
 import com.example.ui.dialogs.MatchHistoryDialog
 import com.example.ui.dialogs.RulesDialog
-import com.example.ui.screens.GameTableScreen
+import com.example.ui.screens.GameScreen
 import com.example.ui.screens.MainMenuScreen
 import com.example.ui.theme.MyApplicationTheme
 
+enum class AppScreen {
+    MAIN_MENU,
+    GAME
+}
+
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: GameViewModel by viewModels()
+    private val gameViewModel: GameViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContent {
-            MyApplicationTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    val isInMainMenu by viewModel.isInMainMenu.collectAsState()
-                    val hasSavedGame by viewModel.hasSavedGame.collectAsState()
-                    val showDeckStats by viewModel.showDeckStats.collectAsState()
-                    val showRules by viewModel.showRules.collectAsState()
-                    val showMatchHistory by viewModel.showMatchHistory.collectAsState()
-                    val matchHistoryList by viewModel.matchHistoryList.collectAsState()
-                    val gameState by viewModel.gameState.collectAsState()
+            MyApplicationTheme(darkTheme = true, dynamicColor = false) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color(0xFF0F0602)
+                ) {
+                    var currentScreen by remember { mutableStateOf(AppScreen.MAIN_MENU) }
+                    val savedGame by gameViewModel.savedMatchState.collectAsState()
+                    val matchHistory by gameViewModel.matchHistory.collectAsState()
 
-                    if (isInMainMenu) {
-                        MainMenuScreen(
-                            hasSavedGame = hasSavedGame,
-                            onResumeGame = { viewModel.resumeSavedGame() },
-                            onStartNewTournament = { viewModel.startNewTournament() },
-                            onMatchHistory = { viewModel.openMatchHistory() },
-                            onHowToPlay = { viewModel.openRules() },
-                            onDeckStats = { viewModel.openDeckStats() }
-                        )
+                    var showMainMenuHistory by remember { mutableStateOf(false) }
+                    var showMainMenuRules by remember { mutableStateOf(false) }
 
-                        if (showDeckStats) {
-                            DeckStatsDialog(
-                                state = gameState,
-                                onDismiss = { viewModel.closeDeckStats() }
+                    when (currentScreen) {
+                        AppScreen.MAIN_MENU -> {
+                            MainMenuScreen(
+                                savedGameState = savedGame,
+                                hasHistory = matchHistory.isNotEmpty(),
+                                onStartNewTournament = {
+                                    gameViewModel.startNewTournament("You")
+                                    currentScreen = AppScreen.GAME
+                                },
+                                onResumeGame = {
+                                    gameViewModel.resumeSavedTournament()
+                                    currentScreen = AppScreen.GAME
+                                },
+                                onViewHistory = {
+                                    showMainMenuHistory = true
+                                },
+                                onViewRules = {
+                                    showMainMenuRules = true
+                                }
+                            )
+
+                            if (showMainMenuHistory) {
+                                MatchHistoryDialog(
+                                    historyList = matchHistory,
+                                    onDismiss = { showMainMenuHistory = false }
+                                )
+                            }
+
+                            if (showMainMenuRules) {
+                                RulesDialog(
+                                    onDismiss = { showMainMenuRules = false }
+                                )
+                            }
+                        }
+                        AppScreen.GAME -> {
+                            BackHandler {
+                                gameViewModel.setPauseDialogVisible(true)
+                            }
+
+                            GameScreen(
+                                viewModel = gameViewModel,
+                                onNavigateToMainMenu = {
+                                    currentScreen = AppScreen.MAIN_MENU
+                                }
                             )
                         }
-
-                        if (showRules) {
-                            RulesDialog(
-                                onDismiss = { viewModel.closeRules() }
-                            )
-                        }
-
-                        if (showMatchHistory) {
-                            MatchHistoryDialog(
-                                historyList = matchHistoryList,
-                                onDismiss = { viewModel.closeMatchHistory() }
-                            )
-                        }
-                    } else {
-                        GameTableScreen(viewModel = viewModel)
                     }
                 }
             }

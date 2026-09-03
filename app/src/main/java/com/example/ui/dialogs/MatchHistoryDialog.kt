@@ -90,13 +90,11 @@ fun MatchHistoryDialog(
                         )
                     }
                 }
-
                 Text(
                     text = if (selectedEntry != null) "Complete 7-Contract Tournament Breakdown" else "Past 7-level tournament results & champions",
                     color = TextSecondary,
                     fontSize = 11.sp
                 )
-
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (selectedEntry != null) {
@@ -120,15 +118,13 @@ fun MatchHistoryDialog(
                                 fontSize = 11.sp
                             )
                             Text(
-                                text = if (entry.humanWon) "🏆 GRAND CHAMPION" else "Rank #${entry.humanFinalRank}",
+                                text = if (entry.humanWon) "★ GRAND CHAMPION" else "Rank #${entry.humanFinalRank}",
                                 color = if (entry.humanWon) GoldPlaqueText else Color(0xFF60A5FA),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
-
-                        Divider(color = Color(0xFF381B09))
-
+                        HorizontalDivider(color = Color(0xFF381B09))
                         Text(
                             text = "Players:",
                             color = GoldPlaqueText,
@@ -147,9 +143,7 @@ fun MatchHistoryDialog(
                                 )
                             }
                         }
-
-                        Divider(color = Color(0xFF381B09))
-
+                        HorizontalDivider(color = Color(0xFF381B09))
                         Text(
                             text = "Final Standings:",
                             color = GoldPlaqueText,
@@ -181,14 +175,12 @@ fun MatchHistoryDialog(
                                 }
                             }
                         }
-
-                        Divider(color = Color(0xFF381B09))
-
+                        HorizontalDivider(color = Color(0xFF381B09))
                         val achievementText = when (entry.humanFinalRank) {
-                            1 -> "GRAND CHAMPION — Winner of the 7-Contract Championship"
-                            2 -> "CHAMPIONSHIP CONTENDER — Runner-Up Commendation"
-                            3 -> "CONTRACT MASTER — 7 Contracts Conquered"
-                            else -> "RUMMAY! CHALLENGER — Tournament Completion"
+                            1 -> "GRAND CHAMPION – Winner of the 7-Contract Championship"
+                            2 -> "CHAMPIONSHIP CONTENDER – Runner-Up Commendation"
+                            3 -> "CONTRACT MASTER – 7 Contracts Conquered"
+                            else -> "RUMMAY! CHALLENGER – Tournament Completion"
                         }
                         Surface(
                             color = Color(0xFF1E0E05),
@@ -264,7 +256,6 @@ fun MatchHistoryDialog(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-
                 Button(
                     onClick = {
                         if (selectedEntry != null) {
@@ -345,14 +336,12 @@ private fun MatchHistoryCard(
                     fontSize = 10.sp
                 )
             }
-
             Text(
-                text = "Your Final Score: ${entry.humanScore} pts (${if (entry.humanWon) "🏆 CHAMPION" else "Rank #${entry.humanFinalRank}"})",
+                text = "Your Final Score: ${entry.humanScore} pts (${if (entry.humanWon) "★ CHAMPION" else "Rank #${entry.humanFinalRank}"})",
                 color = if (entry.humanWon) EmeraldAccentLight else Color(0xFFCBD5E1),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold
             )
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)

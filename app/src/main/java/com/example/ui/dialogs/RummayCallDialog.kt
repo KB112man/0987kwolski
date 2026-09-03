@@ -44,7 +44,7 @@ fun RummayCallDialog(
     var selectedCard by remember { mutableStateOf<Card?>(null) }
 
     Dialog(
-        onDismissRequest = { /* Modal - must make an action */ },
+        onDismissRequest = { },
         properties = DialogProperties(
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
@@ -140,6 +140,7 @@ fun RummayCallDialog(
                             }
                         }
                     }
+
                     Button(
                         onClick = {
                             selectedCard?.let { onGiveCardSelected(it) }

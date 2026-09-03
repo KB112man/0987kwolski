@@ -18,7 +18,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -37,12 +36,12 @@ fun PlayingCardView(
     isSelected: Boolean = false,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    cardWidth: Dp = 60.dp,
-    cardHeight: Dp = 86.dp,
+    cardWidth: Dp = 54.dp,
+    cardHeight: Dp = 76.dp,
     showPointsBadge: Boolean = false
 ) {
     val offsetY by animateDpAsState(
-        targetValue = if (isSelected) (-10).dp else 0.dp,
+        targetValue = if (isSelected) (-8).dp else 0.dp,
         label = "cardElevation"
     )
 
@@ -51,7 +50,6 @@ fun PlayingCardView(
         card.suit.isRed -> SuitRed
         else -> SuitBlack
     }
-
     val backgroundColor = if (card.isWild) WildBackground else CardWhite
     val borderColor = if (isSelected) Color(0xFFFFD700) else if (card.isWild) WildBorder else CardBorder
     val borderWidth = if (isSelected) 2.5.dp else 1.dp
@@ -107,10 +105,9 @@ fun PlayingCardView(
                             )
                         }
                     }
-
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "🃏",
+                            text = "★",
                             color = EmeraldPrimary,
                             fontSize = (cardWidth.value * 0.36f).sp,
                             fontWeight = FontWeight.Black
@@ -122,7 +119,6 @@ fun PlayingCardView(
                             fontWeight = FontWeight.Black
                         )
                     }
-
                     Text(
                         text = "★",
                         color = WildText,
@@ -158,7 +154,6 @@ fun PlayingCardView(
                                 lineHeight = (cardWidth.value * 0.24f).sp
                             )
                         }
-
                         if (showPointsBadge) {
                             Box(
                                 modifier = Modifier
@@ -188,20 +183,10 @@ fun PlayingCardView(
                         if (card.rank in listOf(Rank.JACK, Rank.QUEEN, Rank.KING)) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = when (card.rank) {
-                                        Rank.JACK -> "⚔"
-                                        Rank.QUEEN -> "👑"
-                                        Rank.KING -> "⚜"
-                                        else -> card.suit.symbol
-                                    },
+                                    text = card.suit.symbol,
                                     color = suitColor.copy(alpha = 0.85f),
                                     fontSize = (cardWidth.value * 0.38f).sp,
                                     fontWeight = FontWeight.Black
-                                )
-                                Text(
-                                    text = card.suit.symbol,
-                                    color = suitColor,
-                                    fontSize = (cardWidth.value * 0.22f).sp
                                 )
                             }
                         } else {
@@ -250,14 +235,11 @@ fun PlayingCardView(
     }
 }
 
-/**
- * Ornate Card Back View with physical filigree canvas pattern.
- */
 @Composable
 fun CardBackView(
     modifier: Modifier = Modifier,
-    cardWidth: Dp = 60.dp,
-    cardHeight: Dp = 86.dp,
+    cardWidth: Dp = 54.dp,
+    cardHeight: Dp = 76.dp,
     isGreenPattern: Boolean = false,
     isBurgundyPattern: Boolean = false,
     count: Int? = null,
@@ -302,7 +284,6 @@ fun CardBackView(
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val w = size.width
                     val h = size.height
-
                     // Filigree Border
                     drawRect(
                         color = patternColor.copy(alpha = 0.5f),
@@ -310,7 +291,6 @@ fun CardBackView(
                         size = Size(w * 0.84f, h * 0.84f),
                         style = Stroke(width = 1.5f)
                     )
-
                     // Inner diamond pattern
                     val diamondPath = Path().apply {
                         moveTo(w * 0.5f, h * 0.18f)
@@ -324,7 +304,6 @@ fun CardBackView(
                         color = patternColor.copy(alpha = 0.4f),
                         style = Stroke(width = 1f)
                     )
-
                     // Rosette / Oval Center
                     drawCircle(
                         color = patternColor.copy(alpha = 0.6f),

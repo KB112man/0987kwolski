@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,25 +82,25 @@ fun SpatialMeldCard(
 ) {
     val trayBorderColor = when {
         isHovered -> Color(0xFF22C55E)
-        isInteractive -> Color(0xFFFFD700).copy(alpha = 0.6f)
-        else -> Color.Transparent
+        isInteractive -> Color(0xFFFFD700).copy(alpha = 0.7f)
+        else -> Color(0xFF5A2E0F).copy(alpha = 0.5f)
     }
 
     Box(
         modifier = modifier
             .onGloballyPositioned { coords -> onBoundsMeasured(coords.boundsInRoot()) }
-            .shadow(if (isHovered) 8.dp else 4.dp, RoundedCornerShape(4.dp))
+            .shadow(if (isHovered) 8.dp else 4.dp, RoundedCornerShape(6.dp))
             .border(
-                if (isHovered) 2.dp else if (isInteractive) 1.dp else 0.dp,
+                if (isHovered) 2.5.dp else if (isInteractive) 1.2.dp else 0.75.dp,
                 trayBorderColor,
-                RoundedCornerShape(4.dp)
+                RoundedCornerShape(6.dp)
             )
             .background(
-                if (isHovered) Color(0x3322C55E) else Color(0x18000000),
-                RoundedCornerShape(4.dp)
+                if (isHovered) Color(0xFF0F3B20) else Color(0xFF140803).copy(alpha = 0.85f),
+                RoundedCornerShape(6.dp)
             )
             .clickable(enabled = isInteractive) { onMeldClicked() }
-            .padding(horizontal = 2.dp, vertical = 2.dp)
+            .padding(horizontal = 4.dp, vertical = 3.dp)
             .testTag("spatial_meld_${meld.id}")
     ) {
         Row(
@@ -109,8 +110,8 @@ fun SpatialMeldCard(
             meld.cards.forEach { card ->
                 PlayingCardView(
                     card = card,
-                    cardWidth = 42.dp,
-                    cardHeight = 60.dp,
+                    cardWidth = 40.dp,
+                    cardHeight = 58.dp,
                     showPointsBadge = false
                 )
             }

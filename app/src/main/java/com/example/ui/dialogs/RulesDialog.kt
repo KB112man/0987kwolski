@@ -26,7 +26,6 @@ import com.example.ui.theme.*
 @Composable
 fun RulesDialog(onDismiss: () -> Unit) {
     val scrollState = rememberScrollState()
-
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
@@ -75,7 +74,6 @@ fun RulesDialog(onDismiss: () -> Unit) {
                         )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Column(
@@ -88,7 +86,7 @@ fun RulesDialog(onDismiss: () -> Unit) {
                     RuleSection(
                         title = "1. THE 7 CONTRACT ROUNDS",
                         content = ContractLevel.entries.joinToString("\n") {
-                            "  Level ${it.levelNumber}: ${it.shortRequirement} (Deal ${it.dealCount} cards)"
+                            "• Level ${it.levelNumber}: ${it.shortRequirement} (Deal ${it.dealCount} cards)"
                         }
                     )
                     RuleSection(
@@ -104,7 +102,7 @@ fun RulesDialog(onDismiss: () -> Unit) {
                         content = "• You must place your ENTIRE contract at once in order to go Down.\n• Once Down, you can 'Play On' by adding matching single cards to your or any opponent's table melds.\n• In Runs with a Joker, playing the natural card moves the Joker to the head or tail."
                     )
                     RuleSection(
-                        title = "5. LEVEL 7 — 3 RUNS / NO DISCARD",
+                        title = "5. LEVEL 7 – 3 RUNS / NO DISCARD",
                         content = "• Level 7 requires 3 complete Runs (minimum 4 cards each, natural > wild).\n• Special Rule: NO DISCARD. The player goes out by laying down all cards without discarding."
                     )
                     RuleSection(
@@ -118,7 +116,6 @@ fun RulesDialog(onDismiss: () -> Unit) {
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier

@@ -3,10 +3,10 @@ package com.example.ui.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,61 +18,59 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
+import com.example.model.GameState
 import com.example.ui.theme.*
 
 @Composable
 fun MainMenuScreen(
-    hasSavedGame: Boolean,
-    onResumeGame: () -> Unit,
+    savedGameState: GameState?,
+    hasHistory: Boolean,
     onStartNewTournament: () -> Unit,
-    onMatchHistory: () -> Unit,
-    onHowToPlay: () -> Unit,
-    onDeckStats: () -> Unit
+    onResumeGame: () -> Unit,
+    onViewHistory: () -> Unit,
+    onViewRules: () -> Unit
 ) {
-    val tableFeltGradient = Brush.radialGradient(
-        colors = listOf(
-            FeltGreenLight,
-            FeltGreen,
-            FeltGreenDark,
-            Color(0xFF031008)
+    val woodBackground = Brush.radialGradient(
+        listOf(
+            Color(0xFF381B09),
+            Color(0xFF220E04),
+            Color(0xFF140702),
+            Color(0xFF0A0301)
         )
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(tableFeltGradient)
+            .background(woodBackground)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .testTag("main_menu_screen"),
+            .testTag("screen_main_menu"),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.90f)
+                .fillMaxWidth(0.92f)
                 .widthIn(max = 440.dp)
-                .padding(vertical = 24.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // App Title Plaque
+            // App Hero / Logo
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(16.dp, RoundedCornerShape(16.dp))
-                    .border(
-                        2.dp,
-                        Brush.verticalGradient(
-                            listOf(Color(0xFFFFDF00), Color(0xFFD4AF37), Color(0xFF8C6212))
-                        ),
-                        RoundedCornerShape(16.dp)
-                    ),
-                color = Color(0xFF1B0C04),
+                    .border(2.dp, GoldPlaqueBorder, RoundedCornerShape(16.dp)),
+                color = Color(0xFF1C0D05),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
@@ -80,177 +78,276 @@ fun MainMenuScreen(
                         .fillMaxWidth()
                         .background(
                             Brush.verticalGradient(
-                                listOf(Color(0xFF381B09), Color(0xFF220E04), Color(0xFF140702))
+                                listOf(
+                                    Color(0xFF4A250E),
+                                    Color(0xFF2E1306),
+                                    Color(0xFF140702)
+                                )
                             )
                         )
-                        .padding(vertical = 18.dp, horizontal = 12.dp),
+                        .padding(vertical = 20.dp, horizontal = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "ULTIMATE RUMMAY!",
+                        text = "RUMMAY!",
                         color = GoldPlaqueText,
-                        fontSize = 26.sp,
+                        fontSize = 38.sp,
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Black,
-                        letterSpacing = 1.5.sp,
-                        textAlign = TextAlign.Center
+                        letterSpacing = 3.sp
+                    )
+                    Text(
+                        text = "The 7-Contract Rummy Card Game",
+                        color = Color(0xFFFFF7ED),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "7-Level Contract Rummy Tournament Edition",
-                        color = Color(0xFFFFF7ED),
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "108-Card Double Deck • AI Opponents • Authentic Rules",
-                        color = EmeraldAccentLight,
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
+                        text = "108-Card Double Deck • Wild Jokers • Books & Runs",
+                        color = GoldPlaqueSubText,
+                        fontSize = 10.sp,
+                        letterSpacing = 0.2.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Resume Game Card (if saved game exists)
+            if (savedGameState != null) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(12.dp, RoundedCornerShape(12.dp))
+                        .border(1.5.dp, EmeraldAccentLight, RoundedCornerShape(12.dp)),
+                    color = Color(0xFF0F3B20),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayCircleFilled,
+                                    contentDescription = null,
+                                    tint = EmeraldAccentLight,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "SAVED MATCH IN PROGRESS",
+                                    color = EmeraldAccentLight,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                            Surface(
+                                color = EmeraldPrimary,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "Level ${savedGameState.currentLevel} of 7",
+                                    color = Color.Black,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
 
-            // Main Menu Buttons
+                        Text(
+                            text = "Contract: ${savedGameState.contractLevel.shortRequirement}",
+                            color = Color(0xFFDCFCE7),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Text(
+                            text = "Players: ${savedGameState.players.joinToString(", ") { it.name }}",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 10.sp
+                        )
+
+                        Button(
+                            onClick = onResumeGame,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .shadow(6.dp, RoundedCornerShape(8.dp))
+                                .testTag("btn_resume_match"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = EmeraldPrimary,
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "RESUME MATCH",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Main Menu Action Buttons
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // 1. RESUME GAME (If saved game exists)
-                if (hasSavedGame) {
-                    MainMenuButton(
-                        icon = Icons.Default.PlayArrow,
-                        title = "RESUME GAME",
-                        subtitle = "Continue your active tournament",
-                        isPrimary = true,
-                        onClick = onResumeGame,
-                        testTag = "btn_menu_resume"
-                    )
-                }
-
-                // 2. START NEW TOURNAMENT
-                MainMenuButton(
-                    icon = Icons.Default.EmojiEvents,
-                    title = "START NEW TOURNAMENT",
-                    subtitle = "Begin Level 1 with 3 AI Opponents",
-                    isPrimary = !hasSavedGame,
+                MenuActionButton(
+                    icon = Icons.Default.AddCircleOutline,
+                    title = "NEW TOURNAMENT",
+                    subtitle = "Start fresh from Level 1 (2 Books)",
+                    containerColor = GoldPlaqueText,
+                    contentColor = Color.Black,
                     onClick = onStartNewTournament,
-                    testTag = "btn_menu_new_tournament"
+                    testTag = "btn_new_tournament"
                 )
 
-                // 3. MATCH HISTORY
-                MainMenuButton(
+                MenuActionButton(
                     icon = Icons.Default.History,
                     title = "MATCH HISTORY",
-                    subtitle = "View past tournament results & champions",
-                    isPrimary = false,
-                    onClick = onMatchHistory,
+                    subtitle = "Past championship results & standings",
+                    containerColor = Color(0xFF261205),
+                    contentColor = GoldPlaqueText,
+                    borderColor = GoldPlaqueBorder.copy(alpha = 0.6f),
+                    onClick = onViewHistory,
                     testTag = "btn_menu_history"
                 )
 
-                // 4. HOW TO PLAY / RULES
-                MainMenuButton(
+                MenuActionButton(
                     icon = Icons.Default.MenuBook,
-                    title = "HOW TO PLAY & RULES",
-                    subtitle = "7 Contracts, Buy Priority & Rummay rules",
-                    isPrimary = false,
-                    onClick = onHowToPlay,
+                    title = "OFFICIAL RULES",
+                    subtitle = "Contracts, Buys, Going Down, Rummay!",
+                    containerColor = Color(0xFF1E0E05),
+                    contentColor = Color(0xFFFFF7ED),
+                    borderColor = Color(0xFF5A2E0F),
+                    onClick = onViewRules,
                     testTag = "btn_menu_rules"
                 )
+            }
 
-                // 5. 108-CARD DECK & POINT VALUES
-                MainMenuButton(
-                    icon = Icons.Default.Layers,
-                    title = "108-CARD DECK STATS",
-                    subtitle = "2 Decks + 4 Jokers card point breakdown",
-                    isPrimary = false,
-                    onClick = onDeckStats,
-                    testTag = "btn_menu_deck_stats"
-                )
+            // 7 Contract levels summary
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                color = Color(0xFF140702),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF381B09))
+            ) {
+                Column(
+                    modifier = Modifier.padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = "THE 7 TOURNAMENT CONTRACTS",
+                        color = GoldPlaqueSubText,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text("• Level 1: 2 Books (Deal 10)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                    Text("• Level 2: 1 Book & 1 Run (Deal 10)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                    Text("• Level 3: 2 Runs (Deal 10)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                    Text("• Level 4: 3 Books (Deal 10)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                    Text("• Level 5: 2 Books & 1 Run (Deal 12)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                    Text("• Level 6: 1 Book & 2 Runs (Deal 12)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                    Text("• Level 7: 3 Runs / No Discard (Deal 12)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun MainMenuButton(
+private fun MenuActionButton(
     icon: ImageVector,
     title: String,
     subtitle: String,
-    isPrimary: Boolean,
+    containerColor: Color,
+    contentColor: Color,
+    borderColor: Color? = null,
     onClick: () -> Unit,
     testTag: String
 ) {
-    val borderColor = if (isPrimary) EmeraldAccentLight else GoldPlaqueBorder.copy(alpha = 0.7f)
-    val bgColor = if (isPrimary) Color(0xFF092916) else Color(0xFF1E0D05)
-
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(if (isPrimary) 8.dp else 4.dp, RoundedCornerShape(12.dp))
-            .border(if (isPrimary) 1.5.dp else 1.dp, borderColor, RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .testTag(testTag),
-        color = bgColor,
-        shape = RoundedCornerShape(12.dp)
+            .height(58.dp)
+            .shadow(4.dp, RoundedCornerShape(10.dp))
+            .border(
+                1.dp,
+                borderColor ?: Color.Transparent,
+                RoundedCornerShape(10.dp)
+            ),
+        color = containerColor,
+        shape = RoundedCornerShape(10.dp)
     ) {
-        Row(
+        Button(
+            onClick = onClick,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .fillMaxSize()
+                .testTag(testTag),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                contentColor = contentColor
+            ),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        if (isPrimary) EmeraldPrimary else Color(0xFF2C1408),
-                        CircleShape
-                    )
-                    .border(
-                        1.dp,
-                        if (isPrimary) EmeraldAccentLight else GoldPlaqueBorder,
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Start
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (isPrimary) Color.Black else GoldPlaqueText,
-                    modifier = Modifier.size(22.dp)
+                    tint = contentColor,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        color = contentColor,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = subtitle,
+                        color = contentColor.copy(alpha = 0.75f),
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = contentColor.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = if (isPrimary) EmeraldAccentLight else Color(0xFFFFF7ED),
-                    fontSize = 13.5.sp,
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.5.sp
-                )
-                Text(
-                    text = subtitle,
-                    color = if (isPrimary) Color(0xFF86EFAC) else TextSecondary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = if (isPrimary) EmeraldAccentLight else GoldPlaqueText.copy(alpha = 0.7f),
-                modifier = Modifier.size(20.dp)
-            )
         }
     }
 }

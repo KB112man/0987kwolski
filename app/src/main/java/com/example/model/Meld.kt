@@ -24,23 +24,14 @@ data class Meld(
     val wildCount: Int
         get() = wildCards.size
 
-    /**
-     * Wild Card Rule: A valid meld must ALWAYS contain strictly MORE natural cards than wild cards.
-     */
     val hasNaturalMajority: Boolean
         get() = naturalCount > wildCount
 
-    /**
-     * For a Book, returns the designated rank (from any natural card).
-     */
     val bookRank: Rank?
         get() = if (type == MeldType.BOOK) {
             naturalCards.firstOrNull()?.rank
         } else null
 
-    /**
-     * For a Run, returns the suit (from any natural card).
-     */
     val runSuit: Suit?
         get() = if (type == MeldType.RUN) {
             naturalCards.firstOrNull()?.suit
@@ -147,12 +138,10 @@ data class Meld(
             if (suit == Suit.NONE || naturals.any { it.suit != suit }) return emptyList()
             val length = candidateCards.size
             val validSpans = mutableListOf<Triple<Int, Int, Boolean>>()
-
             val spansAceLow = findAllRunSpans(candidateCards, length, isAceHigh = false)
             for (pair in spansAceLow) {
                 validSpans.add(Triple(pair.first, pair.second, false))
             }
-
             val spansAceHigh = findAllRunSpans(candidateCards, length, isAceHigh = true)
             for (pair in spansAceHigh) {
                 val containsAce = naturals.any { it.rank == Rank.ACE }
@@ -160,7 +149,6 @@ data class Meld(
                     validSpans.add(Triple(pair.first, pair.second, true))
                 }
             }
-
             val results = mutableListOf<List<Card>>()
             val seenSignatures = mutableSetOf<String>()
             for ((start, end, isAceHigh) in validSpans) {

@@ -1,9 +1,5 @@
 package com.example.ui.dialogs
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,7 +8,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -21,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -36,7 +30,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,7 +73,6 @@ fun MeldBuilderDialog(
 
     var activeSlotIndex by remember { mutableIntStateOf(0) }
     var validationErrorMessage by remember { mutableStateOf<String?>(null) }
-
     var draggedCard by remember { mutableStateOf<Card?>(null) }
     var dragGlobalPosition by remember { mutableStateOf<Offset?>(null) }
     var hoveredSlotIndex by remember { mutableIntStateOf(-1) }
@@ -179,7 +171,6 @@ fun MeldBuilderDialog(
             playerName = player.name
         )
     }
-
     val isContractComplete = verifiedMelds != null
 
     fun isLegalDestination(card: Card?, slotIdx: Int): Boolean {
@@ -250,7 +241,7 @@ fun MeldBuilderDialog(
                     .padding(10.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 1. COMPACT TABLETOP HEADER
+                // 1. TABLETOP HEADER
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -608,7 +599,6 @@ fun MeldBuilderDialog(
                                                             hoveredSlotIndex = -1
                                                             break
                                                         }
-
                                                         val dragDelta = change.positionChange()
                                                         totalDrag += dragDelta
                                                         if (!isDragging && totalDrag.getDistance() > 8f) {
@@ -745,7 +735,6 @@ fun MeldBuilderDialog(
                     val cardHeightDp = 74.dp
                     val cardWidthPx = with(density) { cardWidthDp.toPx() }
                     val cardHeightPx = with(density) { cardHeightDp.toPx() }
-
                     Box(
                         modifier = Modifier
                             .offset {
@@ -782,7 +771,8 @@ private fun MeldSlotTray(
     onCardClicked: (Card) -> Unit,
     onClearSlotClicked: () -> Unit,
     onSlotSelected: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    RaidSlotTray: Boolean = false
 ) {
     val scrollState = rememberScrollState()
     val trayBorderColor = when {
@@ -800,7 +790,6 @@ private fun MeldSlotTray(
         cards.isNotEmpty() -> Color(0xFF1E1407)
         else -> Color(0xFF140903)
     }
-
     val typeLabel = if (definition.type == MeldType.BOOK) "BOOK" else "RUN"
     val slotNumber = definition.slotIndex + 1
 

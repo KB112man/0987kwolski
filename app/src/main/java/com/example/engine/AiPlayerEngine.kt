@@ -12,9 +12,6 @@ data class AiPlayOnMove(
 )
 
 object AiPlayerEngine {
-    /**
-     * Decides whether the AI should take the discard (TO YOU) on their normal turn.
-     */
     fun shouldTakeDiscard(
         ai: Player,
         discard: Card,
@@ -22,13 +19,9 @@ object AiPlayerEngine {
         tableMelds: List<Meld>
     ): Boolean {
         if (discard.isWild) return true
-
-        // 1. If already down, can it play on table melds?
         if (ai.isDown && tableMelds.any { it.canAddCard(discard) }) {
             return true
         }
-
-        // 2. Does adding this 1 card complete the entire contract?
         val testHand = ai.hand + discard
         val contractWithCard = MeldDetector.findValidContract(testHand, level, ai.id, ai.name)
         if (contractWithCard != null) {
@@ -42,7 +35,6 @@ object AiPlayerEngine {
             else -> 0.20
         }
 
-        // 3. Books: If AI has a pair (2 cards of same rank) or 1 card + wild
         if (level.requiredBooks > 0) {
             val naturalRankMatches = ai.hand.count { !it.isWild && it.rank == discard.rank }
             val wildCount = ai.hand.count { it.isWild }
@@ -54,7 +46,6 @@ object AiPlayerEngine {
             }
         }
 
-        // 4. Runs: If AI has at least 2 connected cards in suit
         if (level.requiredRuns > 0) {
             val sameSuitRanks = ai.hand.filter { !it.isWild && it.suit == discard.suit }.map { it.rank.value }.toSet()
             val hasTwoNeighbors = (sameSuitRanks.contains(discard.rank.value - 1) && sameSuitRanks.contains(discard.rank.value - 2)) ||
@@ -68,7 +59,6 @@ object AiPlayerEngine {
                 return true
             }
         }
-
         return false
     }
 
@@ -79,9 +69,6 @@ object AiPlayerEngine {
         tableMelds: List<Meld>
     ): Boolean = shouldTakeDiscard(ai, discard, level, tableMelds)
 
-    /**
-     * Decides whether the AI should BUY the discard out-of-turn.
-     */
     fun shouldBuyCard(
         ai: Player,
         discard: Card,
@@ -89,35 +76,29 @@ object AiPlayerEngine {
         tableMelds: List<Meld>
     ): Boolean {
         if (discard.isWild) return true
-
         val testHand = ai.hand + discard
         if (MeldDetector.findValidContract(testHand, level, ai.id, ai.name) != null) {
             return true
         }
-
         if (ai.isDown && tableMelds.any { it.canAddCard(discard) }) {
             return ai.hand.size < 10
         }
-
         val buyThreshold = when (ai.personality) {
             "Aggressive" -> 0.70
             "Strategic" -> 0.55
             "Cautious" -> 0.30
             else -> 0.45
         }
-
         val rankMatches = ai.hand.count { !it.isWild && it.rank == discard.rank }
         if (level.requiredBooks > 0 && rankMatches >= 2) {
             return Random.nextDouble() < buyThreshold
         }
-
         val suitNeighbors = ai.hand.filter {
             !it.isWild && it.suit == discard.suit && Math.abs(it.rank.value - discard.rank.value) == 1
         }
         if (level.requiredRuns > 0 && suitNeighbors.size >= 2) {
             return Random.nextDouble() < buyThreshold
         }
-
         return false
     }
 
@@ -128,9 +109,6 @@ object AiPlayerEngine {
         tableMelds: List<Meld>
     ): Boolean = shouldBuyCard(ai, discard, level, tableMelds)
 
-    /**
-     * Chooses the best card from hand to discard.
-     */
     fun chooseDiscard(
         ai: Player,
         level: ContractLevel,
@@ -138,13 +116,11 @@ object AiPlayerEngine {
     ): Card {
         val nonWilds = ai.hand.filter { !it.isWild }
         val nonRummyCandidates = nonWilds.filter { !MeldDetector.isRummyCard(it, tableMelds) }
-
         val candidates = when {
             nonRummyCandidates.isNotEmpty() -> nonRummyCandidates
             nonWilds.isNotEmpty() -> nonWilds
             else -> ai.hand
         }
-
         return candidates.maxByOrNull { card ->
             var discardScore = card.pointValue * 2
             val sameRankCount = ai.hand.count { !it.isWild && it.id != card.id && it.rank == card.rank }
@@ -174,9 +150,6 @@ object AiPlayerEngine {
         return moves
     }
 
-    /**
-     * Chooses a penalty card from AI's own hand to give to the offending player.
-     */
     fun choosePenaltyCardToGive(ai: Player): Card {
         val nonWilds = ai.hand.filter { !it.isWild }
         if (nonWilds.isEmpty()) return ai.hand.first()

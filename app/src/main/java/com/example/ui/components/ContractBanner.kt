@@ -63,7 +63,7 @@ fun ContractBanner(
             horizontalArrangement = Arrangement.spacedBy(5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. PAUSE / MAIN MENU BUTTON
+            // 1. MENU BUTTON
             Surface(
                 modifier = Modifier
                     .size(width = 44.dp, height = 50.dp)
@@ -84,7 +84,7 @@ fun ContractBanner(
                 }
             }
 
-            // 2. PANEL 1: LEVEL / CONTRACT
+            // 2. LEVEL / CONTRACT
             Surface(
                 modifier = Modifier
                     .weight(1.35f)
@@ -129,7 +129,7 @@ fun ContractBanner(
                 }
             }
 
-            // 3. PANEL 2: YOU / SCORE
+            // 3. YOU / SCORE
             Surface(
                 modifier = Modifier
                     .weight(0.9f)
@@ -171,7 +171,7 @@ fun ContractBanner(
                 }
             }
 
-            // 4. PANEL 3: ROUND
+            // 4. ROUND
             Surface(
                 modifier = Modifier
                     .weight(0.9f)
@@ -213,7 +213,7 @@ fun ContractBanner(
                 }
             }
 
-            // 5. PANEL 4: TURN
+            // 5. TURN
             Surface(
                 modifier = Modifier
                     .weight(1.0f)

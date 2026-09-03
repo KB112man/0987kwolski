@@ -75,7 +75,7 @@ fun BottomTableNavBar(
                 modifier = Modifier.weight(1f)
             )
 
-            // 3. TABLE (Active Highlighted Tab)
+            // 3. TABLE
             NavPlaqueTab(
                 icon = Icons.Default.Dashboard,
                 label = "TABLE",

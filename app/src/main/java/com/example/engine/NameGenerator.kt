@@ -14,7 +14,7 @@ object NameGenerator {
         "Snoopy", "Bawdy", "Cuddly", "Dopey", "Fizzy", "Frisky", "Giddy", "Groovy",
         "Hasty", "Icy", "Jolly", "Lumpy", "Mellow", "Nippy", "Plucky", "Punky",
         "Shaky", "Smug", "Sticky", "Stinky", "Touchy", "Tricky", "Twitchy", "Vain",
-        "Wicked", "Wonky", "Zippy", "Crafty", "Foxy", "Peppy", "Kooky", "Squeaky"
+        "Wicked", "Wonky", "Zippy", "Crafty", "Foxy", "Kooky", "Squeaky"
     )
 
     private val NOUNS = listOf(
@@ -29,7 +29,7 @@ object NameGenerator {
         "Chimp", "Gorilla", "Flamingo", "Vulture", "Ostrich", "Turkey", "Rooster",
         "Bullfrog", "Salamander", "Gecko", "Iguana", "Chameleon", "Bagel", "Pretzel",
         "Cupcake", "Brownie", "Cannoli", "Nacho", "Churro", "Twinkie", "Meathead",
-        "Knucklehead", "Goofball", "Dingbat", "Bozo", "Rascal", "Scoundrel", "Whippersnapper"
+        "Knucklehead", "Goofball", "Dingbat", "Bozo", "Scoundrel", "Whippersnapper"
     )
 
     fun generateName(): String {
@@ -44,7 +44,6 @@ object NameGenerator {
         val maxCombinations = ADJECTIVES.size * NOUNS.size
         var attempts = 0
         val maxAttempts = maxCombinations * 2
-
         while (result.size < count && attempts < maxAttempts) {
             attempts++
             val name = generateName()
@@ -53,7 +52,6 @@ object NameGenerator {
                 result.add(name)
             }
         }
-
         var fallbackIdx = 1
         while (result.size < count) {
             val fallbackName = "${generateName()} $fallbackIdx"
@@ -63,7 +61,6 @@ object NameGenerator {
             }
             fallbackIdx++
         }
-
         return result
     }
 

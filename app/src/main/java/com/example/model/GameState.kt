@@ -17,7 +17,10 @@ data class PendingBuyPriority(
     val discarderName: String,
     val nextTurnPlayerId: String,
     val interestedBuyerIds: List<String> = emptyList()
-)
+) {
+    val discardCard: Card get() = discard
+    val eligibleContenderIds: List<String> get() = interestedBuyerIds
+}
 
 data class PendingRummayCall(
     val discardedCard: Card,
@@ -69,6 +72,15 @@ data class GameState(
             players.firstOrNull() ?: Player(name = "You", isHuman = true)
         }
 
+    val currentPlayer: Player
+        get() = currentTurnPlayer
+
+    val currentTurnPhase: TurnPhase
+        get() = currentPhase
+
+    val nextPlayer: Player
+        get() = if (players.isEmpty()) currentTurnPlayer else players[(currentTurnPlayerIndex + 1) % players.size]
+
     val turnPlayerIndex: Int
         get() = currentTurnPlayerIndex
 
@@ -86,6 +98,15 @@ data class GameState(
 
     val aiOpponents: List<Player>
         get() = players.filter { !it.isHuman }
+
+    val topOpponent: Player?
+        get() = aiOpponents.getOrNull(0)
+
+    val leftOpponent: Player?
+        get() = aiOpponents.getOrNull(1)
+
+    val rightOpponent: Player?
+        get() = aiOpponents.getOrNull(2)
 
     val allTrackedCards: List<Card>
         get() {

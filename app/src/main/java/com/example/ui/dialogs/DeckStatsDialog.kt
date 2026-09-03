@@ -36,7 +36,7 @@ fun DeckStatsDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(0.96f)
                 .shadow(24.dp, RoundedCornerShape(16.dp))
                 .border(1.dp, GlassBorderEmerald, RoundedCornerShape(16.dp))
                 .testTag("dialog_deck_stats"),
@@ -122,7 +122,7 @@ fun DeckStatsDialog(
                     PointRow("Jokers (Wild)", "20 pts each")
                     PointRow("Aces", "15 pts each")
                     PointRow("Face Cards (K, Q, J) & 10s", "10 pts each")
-                    PointRow("Number Cards (2 – 9)", "5 pts each")
+                    PointRow("Number Cards (2 - 9)", "5 pts each")
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

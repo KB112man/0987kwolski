@@ -39,7 +39,7 @@ fun ToYouOfferDialog(
     val handScrollState = rememberScrollState()
 
     Dialog(
-        onDismissRequest = { /* Must respond */ },
+        onDismissRequest = { },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
@@ -78,7 +78,6 @@ fun ToYouOfferDialog(
                         letterSpacing = 0.5.sp
                     )
                 }
-
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Row(

@@ -102,7 +102,6 @@ object DeckEngine {
             val newDeck = drawDeck.drop(1)
             return Triple(newDeck, card, discardPile)
         }
-
         // Recycle discard pile if draw deck is empty
         if (discardPile.size > 1) {
             val (recycledDeck, newDiscards) = recycleDiscardPile(discardPile)
@@ -112,7 +111,6 @@ object DeckEngine {
                 return Triple(newDeck, card, newDiscards)
             }
         }
-
         return Triple(emptyList(), null, discardPile)
     }
 
@@ -137,5 +135,300 @@ object DeckEngine {
             "Level end card integrity error: Expected 108 unique card IDs, but found ${uniqueIds.size} unique IDs."
         }
         return gathered
+    }
+
+    fun startNewGame(humanName: String = "You"): com.example.model.GameState {
+        val initialPlayers = listOf(
+            Player(id = "player_human", name = humanName, isHuman = true, avatarIndex = 0),
+            Player(id = "player_top", name = "Wicked Gremlin", isHuman = false, avatarIndex = 1, personality = "Strategic"),
+            Player(id = "player_left", name = "Jolly Otter", isHuman = false, avatarIndex = 2, personality = "Aggressive"),
+            Player(id = "player_right", name = "Silly Muffin", isHuman = false, avatarIndex = 3, personality = "Cautious")
+        )
+        val level1Contract = ContractLevel.fromLevelNumber(1)
+        val deal = dealNewRound(initialPlayers, level1Contract)
+
+        return com.example.model.GameState(
+            currentLevel = 1,
+            dealerIndex = 0,
+            currentTurnPlayerIndex = 0,
+            currentPhase = com.example.model.TurnPhase.DRAW,
+            drawDeck = deal.drawDeck,
+            discardPile = deal.discardPile,
+            players = deal.players,
+            allTableMelds = emptyList(),
+            statusMessage = "Level 1: 2 Books. Your turn — Draw from Stock or Take Discard."
+        )
+    }
+
+    fun startNextLevel(state: com.example.model.GameState, nextLevel: Int): com.example.model.GameState {
+        val nextContract = ContractLevel.fromLevelNumber(nextLevel)
+        val resetPlayers = state.players.map { player ->
+            player.copy(
+                laidMelds = emptyList(),
+                initialDownMelds = emptyList(),
+                isDown = false
+            )
+        }
+        val deal = dealNewRound(resetPlayers, nextContract)
+        val nextDealer = (state.dealerIndex + 1) % resetPlayers.size
+        val nextTurnPlayer = (nextDealer + 1) % resetPlayers.size
+
+        return state.copy(
+            currentLevel = nextLevel,
+            dealerIndex = nextDealer,
+            currentTurnPlayerIndex = nextTurnPlayer,
+            currentPhase = com.example.model.TurnPhase.DRAW,
+            drawDeck = deal.drawDeck,
+            discardPile = deal.discardPile,
+            players = deal.players,
+            allTableMelds = emptyList(),
+            isRoundOver = false,
+            pendingBuyPriority = null,
+            pendingRummay = null,
+            statusMessage = "Level $nextLevel: ${nextContract.shortRequirement}. ${deal.players[nextTurnPlayer].name}'s turn to draw."
+        )
+    }
+
+    fun drawCard(state: com.example.model.GameState, playerId: String): Pair<com.example.model.GameState, Card?> {
+        val player = state.players.find { it.id == playerId } ?: return Pair(state, null)
+        val (newDeck, card, newDiscards) = drawCard(state.drawDeck, state.discardPile)
+        if (card == null) return Pair(state, null)
+
+        val updatedPlayer = player.withUpdatedHand(player.hand + card)
+        val updatedPlayers = state.players.map { if (it.id == playerId) updatedPlayer else it }
+
+        val newState = state.copy(
+            drawDeck = newDeck,
+            discardPile = newDiscards,
+            players = updatedPlayers
+        )
+        return Pair(newState, card)
+    }
+
+    fun takeDiscard(state: com.example.model.GameState, playerId: String): Pair<com.example.model.GameState, Card?> {
+        val player = state.players.find { it.id == playerId } ?: return Pair(state, null)
+        if (state.discardPile.isEmpty()) return Pair(state, null)
+
+        val topDiscard = state.discardPile.last()
+        val remainingDiscards = state.discardPile.dropLast(1)
+        val updatedPlayer = player.withUpdatedHand(player.hand + topDiscard)
+        val updatedPlayers = state.players.map { if (it.id == playerId) updatedPlayer else it }
+
+        val newState = state.copy(
+            discardPile = remainingDiscards,
+            players = updatedPlayers
+        )
+        return Pair(newState, topDiscard)
+    }
+
+    fun buyDiscard(state: com.example.model.GameState, buyerId: String): Pair<com.example.model.GameState, Card?> {
+        val buyer = state.players.find { it.id == buyerId } ?: return Pair(state, null)
+        if (state.discardPile.isEmpty()) return Pair(state, null)
+
+        val boughtDiscard = state.discardPile.last()
+        val remainingDiscards = state.discardPile.dropLast(1)
+
+        // Draw 1 penalty card from stock
+        val (deckAfterPenalty, penaltyCard, discardsAfterDraw) = drawCard(state.drawDeck, remainingDiscards)
+        val newHand = if (penaltyCard != null) {
+            buyer.hand + boughtDiscard + penaltyCard
+        } else {
+            buyer.hand + boughtDiscard
+        }
+
+        val updatedBuyer = buyer.withUpdatedHand(newHand)
+        val updatedPlayers = state.players.map { if (it.id == buyerId) updatedBuyer else it }
+
+        val newState = state.copy(
+            drawDeck = deckAfterPenalty,
+            discardPile = discardsAfterDraw,
+            players = updatedPlayers,
+            pendingBuyPriority = null
+        )
+        return Pair(newState, boughtDiscard)
+    }
+
+    fun discardCard(state: com.example.model.GameState, playerId: String, card: Card): Pair<com.example.model.GameState, Card> {
+        val player = state.players.find { it.id == playerId } ?: return Pair(state, card)
+        val updatedHand = player.hand.filter { it.id != card.id }
+        val updatedPlayer = player.withUpdatedHand(updatedHand)
+        val updatedPlayers = state.players.map { if (it.id == playerId) updatedPlayer else it }
+        val updatedDiscards = state.discardPile + card
+
+        val newState = state.copy(
+            discardPile = updatedDiscards,
+            players = updatedPlayers
+        )
+        return Pair(newState, card)
+    }
+
+    fun transferCardBetweenPlayers(
+        state: com.example.model.GameState,
+        fromId: String,
+        toId: String,
+        card: Card
+    ): com.example.model.GameState {
+        val fromPlayer = state.players.find { it.id == fromId } ?: return state
+        val toPlayer = state.players.find { it.id == toId } ?: return state
+
+        val updatedFrom = fromPlayer.withUpdatedHand(fromPlayer.hand.filter { it.id != card.id })
+        val updatedTo = toPlayer.withUpdatedHand(toPlayer.hand + card)
+
+        val updatedPlayers = state.players.map {
+            when (it.id) {
+                fromId -> updatedFrom
+                toId -> updatedTo
+                else -> it
+            }
+        }
+        return state.copy(players = updatedPlayers)
+    }
+
+    fun goDown(
+        state: com.example.model.GameState,
+        playerId: String,
+        validatedMelds: List<com.example.model.Meld>
+    ): Pair<com.example.model.GameState, Boolean> {
+        val player = state.players.find { it.id == playerId } ?: return Pair(state, false)
+        val meldedCardIds = validatedMelds.flatMap { it.cards }.map { it.id }.toSet()
+        val remainingHand = player.hand.filter { it.id !in meldedCardIds }
+
+        val updatedPlayer = player.copy(
+            isDown = true,
+            laidMelds = player.laidMelds + validatedMelds,
+            initialDownMelds = validatedMelds
+        ).withUpdatedHand(remainingHand)
+
+        val updatedPlayers = state.players.map { if (it.id == playerId) updatedPlayer else it }
+        val updatedTableMelds = state.allTableMelds + validatedMelds
+
+        val newState = state.copy(
+            players = updatedPlayers,
+            allTableMelds = updatedTableMelds
+        )
+        return Pair(newState, true)
+    }
+
+    fun playOnMeld(
+        state: com.example.model.GameState,
+        playerId: String,
+        card: Card,
+        meldId: String,
+        shiftWildToHead: Boolean = false
+    ): Pair<com.example.model.GameState, Boolean> {
+        val player = state.players.find { it.id == playerId } ?: return Pair(state, false)
+        val targetMeld = state.allTableMelds.find { it.id == meldId } ?: return Pair(state, false)
+
+        if (!targetMeld.canAddCard(card)) return Pair(state, false)
+
+        val updatedTargetMeld = targetMeld.withCardAdded(card)
+        val remainingHand = player.hand.filter { it.id != card.id }
+        val updatedPlayer = player.withUpdatedHand(remainingHand)
+
+        val updatedTableMelds = state.allTableMelds.map {
+            if (it.id == meldId) updatedTargetMeld else it
+        }
+
+        val updatedPlayers = state.players.map { p ->
+            if (p.id == playerId) {
+                updatedPlayer
+            } else if (p.id == targetMeld.ownerId) {
+                val updatedOwnerMelds = p.laidMelds.map { m ->
+                    if (m.id == meldId) updatedTargetMeld else m
+                }
+                p.copy(laidMelds = updatedOwnerMelds)
+            } else {
+                p
+            }
+        }
+
+        val newState = state.copy(
+            players = updatedPlayers,
+            allTableMelds = updatedTableMelds
+        )
+        return Pair(newState, true)
+    }
+
+    fun moveCardInRack(player: Player, fromRow: Int, fromSlot: Int, toRow: Int, toSlot: Int): Player {
+        val currentSlotCard = player.rackRows.getOrNull(fromRow)?.getOrNull(fromSlot) ?: return player
+        return player.moveCardInRack(currentSlotCard.id, toRow, toSlot)
+    }
+
+    fun sortHand(hand: List<Card>, mode: com.example.model.SortMode): List<Card> {
+        return when (mode) {
+            com.example.model.SortMode.RANK -> hand.sortedWith(
+                compareBy({ it.isWild }, { it.rank.value }, { it.suit.ordinal })
+            )
+            com.example.model.SortMode.SUIT -> hand.sortedWith(
+                compareBy({ it.isWild }, { it.suit.ordinal }, { it.rank.value })
+            )
+            com.example.model.SortMode.CUSTOM -> hand
+        }
+    }
+
+    fun repackRackSlots(player: Player): Player {
+        return player.reorganizeHandIntoRack()
+    }
+
+    fun nextTurn(state: com.example.model.GameState): com.example.model.GameState {
+        val nextTurnIdx = (state.currentTurnPlayerIndex + 1) % state.players.size
+        return state.copy(
+            currentTurnPlayerIndex = nextTurnIdx,
+            currentPhase = com.example.model.TurnPhase.DRAW,
+            statusMessage = "${state.players[nextTurnIdx].name}'s turn — Draw from Stock or Take Discard."
+        )
+    }
+
+    fun calculateEndRoundScores(state: com.example.model.GameState, winnerId: String): com.example.model.GameState {
+        val updatedPlayers = state.players.map { p ->
+            val penaltyPoints = if (p.id == winnerId) 0 else p.hand.sumOf { it.points }
+            val newScoresPerLevel = p.scoresPerLevel + penaltyPoints
+            p.copy(scoresPerLevel = newScoresPerLevel)
+        }
+        val winnerIndex = updatedPlayers.indexOfFirst { it.id == winnerId }.takeIf { it >= 0 }
+        return state.copy(
+            players = updatedPlayers,
+            isRoundOver = true,
+            roundWinnerIndex = winnerIndex,
+            statusMessage = "${state.players.find { it.id == winnerId }?.name ?: "Someone"} went out and won Level ${state.currentLevel}!"
+        )
+    }
+
+    fun createMatchHistoryEntry(state: com.example.model.GameState): com.example.model.MatchHistoryEntry {
+        val sortedByScore = state.players.sortedBy { it.totalScore }
+        val human = state.humanPlayer ?: state.players.first()
+        val humanRank = sortedByScore.indexOfFirst { it.id == human.id } + 1
+        val winner = sortedByScore.first()
+
+        val standings = sortedByScore.mapIndexed { idx, p ->
+            com.example.model.MatchPlayerStanding(
+                playerId = p.id,
+                name = p.name,
+                isHuman = p.isHuman,
+                rank = idx + 1,
+                totalScore = p.totalScore,
+                scoresPerLevel = p.scoresPerLevel
+            )
+        }
+
+        val finalStandings = sortedByScore.map {
+            com.example.model.FinalStandingItem(name = it.name, score = it.totalScore)
+        }
+
+        return com.example.model.MatchHistoryEntry(
+            humanPlayerName = human.name,
+            humanFinalRank = humanRank,
+            humanFinalScore = human.totalScore,
+            humanAchievement = if (humanRank == 1) "Grand Champion" else "Top Finish (Rank $humanRank)",
+            isGrandChampion = humanRank == 1,
+            winnerName = winner.name,
+            winnerScore = winner.totalScore,
+            humanScore = human.totalScore,
+            humanWon = humanRank == 1,
+            winnerIsHuman = winner.isHuman,
+            highestLevelCompleted = state.currentLevel,
+            standings = standings,
+            finalStandings = finalStandings
+        )
     }
 }

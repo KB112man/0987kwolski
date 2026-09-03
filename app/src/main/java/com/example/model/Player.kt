@@ -34,6 +34,9 @@ data class Player(
     val levelHistory: List<LevelHistoryEntry> = emptyList(),
     val personality: String = "Balanced"
 ) {
+    val melds: List<Meld>
+        get() = laidMelds
+
     val totalScore: Int
         get() = scoresPerLevel.sum()
 
@@ -81,7 +84,6 @@ data class Player(
         val newCards = newHand.toMutableList()
         val currentRows = if (rackRows.size == RACK_ROW_COUNT) rackRows else listOf(emptyList(), emptyList())
         val updatedRows = mutableListOf<MutableList<Card?>>()
-
         for (rIdx in 0 until RACK_ROW_COUNT) {
             val sourceRow = currentRows.getOrNull(rIdx) ?: emptyList()
             val preservedRow = mutableListOf<Card?>()
@@ -101,7 +103,6 @@ data class Player(
             }
             updatedRows.add(preservedRow)
         }
-
         for (cardToAdd in newCards) {
             var placed = false
             for (row in updatedRows) {
@@ -116,7 +117,6 @@ data class Player(
                 updatedRows[0].add(cardToAdd)
             }
         }
-
         return copy(
             hand = newHand,
             rackRows = updatedRows
@@ -126,7 +126,6 @@ data class Player(
     fun moveCardInRack(cardId: String, targetRowIndex: Int, targetSlotIndex: Int? = null): Player {
         if (targetRowIndex !in 0 until RACK_ROW_COUNT) return this
         val currentCard = hand.find { it.id == cardId } ?: return this
-
         val rows = (0 until RACK_ROW_COUNT).map { rIdx ->
             val row = rackRows.getOrNull(rIdx) ?: emptyList()
             val mRow = row.toMutableList()
@@ -181,7 +180,6 @@ data class Player(
             )
             SortMode.CUSTOM -> hand
         }
-
         val cardsPerRow = (sortedCards.size + RACK_ROW_COUNT - 1).coerceAtLeast(1) / RACK_ROW_COUNT
         val newRows = mutableListOf<List<Card?>>()
         for (i in 0 until RACK_ROW_COUNT) {
@@ -196,7 +194,6 @@ data class Player(
             }
             newRows.add(fullRow)
         }
-
         return copy(rackRows = newRows)
     }
 }

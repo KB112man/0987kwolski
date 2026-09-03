@@ -1,6 +1,5 @@
 package com.example.ui.dialogs
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -101,7 +100,6 @@ fun LayoffDestinationDialog(
                         )
                     }
                 }
-
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Card preview
@@ -151,7 +149,6 @@ fun LayoffDestinationDialog(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (allTableMelds.isEmpty()) {
@@ -305,7 +302,6 @@ private fun MeldDestinationSection(
                                 )
                             }
                         }
-
                         if (isLegal) {
                             Surface(
                                 color = Color(0xFF0F5132),
