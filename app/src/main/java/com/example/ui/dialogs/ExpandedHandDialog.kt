@@ -90,8 +90,8 @@ fun ExpandedHandDialog(
                                 isSelected = selectedCardIds.contains(card.id),
                                 isHighlighted = newlyReceivedCardIds.contains(card.id),
                                 onClick = { onCardClicked(card.id) },
-                                cardWidth = 72.dp,
-                                cardHeight = 104.dp
+                                cardWidth = 92.dp,
+                                cardHeight = 132.dp
                             )
                         }
                     }

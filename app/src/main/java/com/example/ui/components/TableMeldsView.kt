@@ -139,13 +139,13 @@ fun PublicMeldDisplay(
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy((-32).dp)
+                horizontalArrangement = Arrangement.spacedBy((-52).dp)
             ) {
                 meld.cards.forEach { card ->
                     PlayingCardView(
                         card = card,
-                        cardWidth = 64.dp,
-                        cardHeight = 90.dp,
+                        cardWidth = 86.dp,
+                        cardHeight = 124.dp,
                         showPointsBadge = false
                     )
                 }

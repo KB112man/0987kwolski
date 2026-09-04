@@ -85,8 +85,8 @@ fun JokerDestinationDialog(
 
                 PlayingCardView(
                     card = naturalCard,
-                    cardWidth = 64.dp,
-                    cardHeight = 90.dp,
+                    cardWidth = 86.dp,
+                    cardHeight = 124.dp,
                     showPointsBadge = true
                 )
 

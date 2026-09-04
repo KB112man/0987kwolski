@@ -435,7 +435,7 @@ private fun TieredWoodenShelfRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(115.dp)
+            .height(145.dp)
             .onGloballyPositioned { coords -> onRowBoundsMeasured(coords.boundsInRoot()) }
             .border(
                 if (isHovered) 1.5.dp else 0.75.dp,
@@ -454,7 +454,7 @@ private fun TieredWoodenShelfRow(
         ) {
             val availableWidth = maxWidth
             val maxSlots = RACK_SLOTS_PER_ROW
-            val cardWidth = 72.dp
+            val cardWidth = 92.dp
             // Calculate step size so that maxSlots fit within availableWidth
             val step = if (maxSlots > 1) (availableWidth - cardWidth) / (maxSlots - 1).toFloat() else 0.dp
 
@@ -538,8 +538,8 @@ private fun TieredWoodenShelfRow(
                                 isHighlighted = newlyReceivedCardIds.contains(card.id),
                                 modifier = Modifier.fillMaxSize(),
                                 showPointsBadge = false,
-                                cardWidth = 72.dp,
-                                cardHeight = 104.dp
+                                cardWidth = 92.dp,
+                                cardHeight = 132.dp
                             )
                         }
                     } else {
@@ -547,7 +547,7 @@ private fun TieredWoodenShelfRow(
                         Box(
                             modifier = Modifier
                                 .width(cardWidth * 0.7f)
-                                .height(104.dp * 0.8f)
+                                .height(132.dp * 0.8f)
                                 .background(
                                     if (isSlotHovered) Color(0x3322C55E) else Color(0x11000000),
                                     RoundedCornerShape(4.dp)

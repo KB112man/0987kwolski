@@ -3,7 +3,6 @@ package com.example
 import com.example.engine.DeckEngine
 import com.example.engine.NameGenerator
 import com.example.model.Card
-import com.example.model.ContractLevel
 import com.example.model.GameState
 import com.example.model.PendingBuyPriority
 import com.example.model.Player
@@ -305,5 +304,98 @@ class ThreePlayerRosterTest {
             "Rowdy is the only buy candidate after Human discard",
             humanBuyPriority.eligibleContenderIds.contains(rowdy.id)
         )
+    }
+
+    @Test
+    fun testHumanOffenderRummayResolution() {
+        // Construct a state where Human is current player, and there's a Book of Jacks on the table.
+        val human = Player(id = "human", name = "You", isHuman = true, hand = listOf(
+            Card(id = "c1", rank = Rank.JACK, suit = Suit.DIAMONDS)
+        ))
+        val ai1 = Player(id = "ai1", name = "AI1", isHuman = false, hand = listOf(
+            Card(id = "c2", rank = Rank.SIX, suit = Suit.HEARTS)
+        ))
+        val ai2 = Player(id = "ai2", name = "AI2", isHuman = false, hand = emptyList())
+        
+        val bookOfJacks = com.example.model.Meld(
+            id = "meld1",
+            ownerId = "ai1",
+            ownerName = "AI1",
+            cards = listOf(
+                Card("c3", Rank.JACK, Suit.SPADES),
+                Card("c4", Rank.JACK, Suit.CLUBS),
+                Card("c5", Rank.JACK, Suit.HEARTS)
+            ),
+            type = com.example.model.MeldType.BOOK
+        )
+        
+        val state = GameState(
+            players = listOf(human, ai1, ai2),
+            currentTurnPlayerIndex = 0,
+            currentPhase = TurnPhase.DRAW, // Using DRAW as it doesn't require importing TurnPhase.DISCARD if not defined
+            allTableMelds = listOf(bookOfJacks),
+            discardPile = emptyList()
+        )
+        
+        // This simulates what GameViewModel does in triggerRummayAlert for human offenders
+        val discardedCard = human.hand.first()
+        val penaltyCard = ai1.hand.random()
+        val targetMeld = state.allTableMelds.firstOrNull { it.canAddCard(discardedCard) }
+        
+        assertNotNull(targetMeld)
+        
+        var stateAfterRummy = state
+        val updatedDiscards = stateAfterRummy.discardPile.filter { it.id != discardedCard.id }
+        stateAfterRummy = stateAfterRummy.copy(discardPile = updatedDiscards)
+        val (stateAfterPlay, _) = DeckEngine.playOnMeld(stateAfterRummy, human.id, discardedCard, targetMeld!!.id)
+        stateAfterRummy = stateAfterPlay
+        
+        val callerPlayer = stateAfterRummy.players.find { it.id == ai1.id }!!
+        val updatedCaller = callerPlayer.withUpdatedHand(callerPlayer.hand.filter { it.id != penaltyCard.id })
+        
+        val offenderPlayer = stateAfterRummy.players.find { it.id == human.id }!!
+        val updatedOffender = offenderPlayer.withUpdatedHand(offenderPlayer.hand + penaltyCard)
+        
+        stateAfterRummy = stateAfterRummy.copy(
+            players = stateAfterRummy.players.map { p ->
+                when (p.id) {
+                    ai1.id -> updatedCaller
+                    human.id -> updatedOffender
+                    else -> p
+                }
+            }
+        )
+        
+        // Advance turn using DeckEngine as done in ViewModel
+        val transition = DeckEngine.calculateTurnAndBuyPriority(stateAfterRummy.players, human.id, null)
+        val finalState = stateAfterRummy.copy(
+            currentTurnPlayerIndex = transition.nextPlayerIndex,
+            currentPhase = TurnPhase.DRAW,
+            pendingBuyPriority = transition.pendingBuyPriority
+        )
+        
+        // Assertions based on expected human offender RUMMAY flow
+        
+        // 1. Offending card should be in the meld
+        val updatedMeld = finalState.allTableMelds.find { it.id == "meld1" }!!
+        assertTrue("Offending J♦ is in the Book of Jacks", updatedMeld.cards.any { it.id == discardedCard.id })
+        
+        // 2. Penalty card should be in human hand
+        val updatedHuman = finalState.players.find { it.id == human.id }!!
+        assertTrue("Penalty card is in Human hand", updatedHuman.hand.any { it.id == penaltyCard.id })
+        
+        // 3. Penalty card is NOT in AI hand
+        val updatedAi = finalState.players.find { it.id == ai1.id }!!
+        assertFalse("Penalty card is NOT in AI hand", updatedAi.hand.any { it.id == penaltyCard.id })
+        
+        // 4. Discard pile should be empty
+        assertTrue("Discard pile should be empty", finalState.discardPile.isEmpty())
+        
+        // 5. Next turn player should be AI1 (index 1)
+        assertEquals("Next player should be index 1 (AI1)", 1, finalState.currentTurnPlayerIndex)
+        assertEquals("Phase should be DRAW", TurnPhase.DRAW, finalState.currentPhase)
+        
+        // 6. Buy priority should be null since lastDiscarded was null
+        assertNull("Buy priority should be null", finalState.pendingBuyPriority)
     }
 }

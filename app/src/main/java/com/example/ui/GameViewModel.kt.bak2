@@ -505,7 +505,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             _gameState.value = updatedState
             persistState(updatedState)
-            // advanceTurn will be called in onHumanDismissRummay
+            advanceTurn(updatedState, null, currentCall.offender)
             
             _activeRummayCall.value = currentCall.copy(
                 caller = aiCaller,
@@ -559,13 +559,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         )
-
-        val updatedState = stateAfterRummy.copy(
-            statusMessage = "You called RUMMAY! and gave ${penaltyCard.displayName} to ${currentCall.offender.name}."
-        )
         _gameState.value = updatedState
         persistState(updatedState)
         // advanceTurn will be called in onHumanDismissRummay
+
+        _activeRummayCall.value = currentCall.copy(
+
+        persistState(updatedState)
+        advanceTurn(updatedState, null, currentCall.offender)
 
         _activeRummayCall.value = currentCall.copy(
             caller = human,

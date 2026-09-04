@@ -37,6 +37,8 @@ fun RummayCallDialog(
     isHumanCaller: Boolean,
     isHumanOffender: Boolean,
     humanPlayer: Player?,
+    penaltyCard: Card? = null,
+    isResolved: Boolean = false,
     onCallRummay: () -> Unit,
     onPassRummay: () -> Unit,
     onGiveCardSelected: (Card) -> Unit
@@ -101,11 +103,30 @@ fun RummayCallDialog(
 
                 PlayingCardView(
                     card = discardedCard,
-                    cardWidth = 56.dp,
-                    cardHeight = 80.dp
+                    cardWidth = 86.dp,
+                    cardHeight = 124.dp
                 )
 
-                if (isHumanCaller && humanPlayer != null) {
+                if (isResolved && penaltyCard != null && caller != null) {
+                    val catchText = if (isHumanOffender) "caught your" else "caught ${offender.name}'s"
+                    val penaltyTargetText = if (isHumanOffender) "you" else offender.name
+                    Text(
+                        text = "${caller.name} $catchText ${discardedCard.displayName}.\nIt was played onto a table meld.\n\n${caller.name} gave $penaltyTargetText ${penaltyCard.displayName} as a penalty.",
+                        color = Color(0xFFDCFCE7),
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(
+                        onClick = onPassRummay, // Maps to dismiss/acknowledge
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("acknowledge_rummay_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                    ) {
+                        Text("CONTINUE", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                } else if (isHumanCaller && humanPlayer != null) {
                     Text(
                         text = "YOU CALLED RUMMAY!\nChoose 1 card from your hand to give to ${offender.name}:",
                         color = GoldPlaqueText,
@@ -134,8 +155,8 @@ fun RummayCallDialog(
                                 PlayingCardView(
                                     card = card,
                                     isSelected = isSelected,
-                                    cardWidth = 48.dp,
-                                    cardHeight = 68.dp
+                                    cardWidth = 72.dp,
+                                    cardHeight = 104.dp
                                 )
                             }
                         }
@@ -195,6 +216,24 @@ fun RummayCallDialog(
                         ) {
                             Text("CALL RUMMAY!", color = Color.White, fontWeight = FontWeight.Black)
                         }
+                    }
+                } else if (isHumanOffender) {
+                    Text(
+                        text = "You were caught! An opponent will now call RUMMAY! and penalize you.",
+                        color = Color(0xFFFFD54F),
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(
+                        onClick = onPassRummay,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("acknowledge_rummay_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = CrimsonBorder),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("CONTINUE", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

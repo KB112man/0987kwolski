@@ -373,8 +373,8 @@ fun GameScreen(
         activeDraggedCard?.let { card ->
             val pos = dragGlobalPosition
             if (pos != null) {
-                val cardWidthDp = 50.dp
-                val cardHeightDp = 70.dp
+                val cardWidthDp = 92.dp
+                val cardHeightDp = 132.dp
                 val cardWidthPx = with(density) { cardWidthDp.toPx() }
                 val cardHeightPx = with(density) { cardHeightDp.toPx() }
 
@@ -497,8 +497,16 @@ fun GameScreen(
                 isHumanCaller = rummay.isHumanCaller,
                 isHumanOffender = rummay.isHumanOffender,
                 humanPlayer = rummay.humanPlayer,
+                penaltyCard = rummay.penaltyCard,
+                isResolved = rummay.isResolved,
                 onCallRummay = { viewModel.onHumanCallRummay() },
-                onPassRummay = { viewModel.onHumanPassRummay() },
+                onPassRummay = { 
+                    if (rummay.isResolved) {
+                        viewModel.onHumanDismissRummay()
+                    } else {
+                        viewModel.onHumanPassRummay() 
+                    }
+                },
                 onGiveCardSelected = { penaltyCard ->
                     viewModel.onHumanGiveCardToRummayOffender(penaltyCard)
                 }

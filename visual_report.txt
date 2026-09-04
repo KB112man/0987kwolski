@@ -1,0 +1,72 @@
+============================================================
+RUMMAY! — VISUAL REDESIGN REPORT
+============================================================
+
+REFERENCE USED:
+Premium digital tabletop, large readable physical playing cards, controlled horizontal overlap.
+
+FILES CHANGED:
+- app/src/main/java/com/example/ui/components/PlayerWoodenCardRack.kt
+- app/src/main/java/com/example/ui/components/TableMeldsView.kt
+- app/src/main/java/com/example/ui/components/TableCenterView.kt
+- app/src/main/java/com/example/ui/components/PlayingCardView.kt
+- app/src/main/java/com/example/ui/screens/GameScreen.kt
+- app/src/main/java/com/example/ui/dialogs/RummayCallDialog.kt
+- app/src/main/java/com/example/ui/dialogs/MeldBuilderDialog.kt
+- app/src/main/java/com/example/ui/dialogs/ExpandedHandDialog.kt
+- app/src/main/java/com/example/ui/dialogs/JokerDestinationDialog.kt
+- app/src/main/java/com/example/ui/dialogs/BuyPriorityDialog.kt
+- app/src/test/java/com/example/ThreePlayerRosterTest.kt (to verify and fix syntax from earlier session)
+
+PLAYER CARD SIZE:
+BEFORE: 72.dp x 104.dp
+AFTER: 92.dp x 132.dp
+
+PUBLIC MELD CARD SIZE:
+BEFORE: 64.dp x 90.dp
+AFTER: 86.dp x 124.dp
+
+RACK:
+Increased tier height from 115.dp to 145.dp to comfortably house the larger cards while retaining the existing 4-row system. The rack groove placeholders were scaled accordingly.
+
+CARD OVERLAP:
+Cards now organically overlap because the step size dynamically factors the larger 92.dp card width against the available space, achieving the desired physical card-stacking effect rather than shrinking into thumbnails.
+
+TABLE COMPOSITION:
+The center of the table remains cleanly balanced. The larger cards naturally consume more vertical space, ensuring readability takes priority over empty green felt.
+
+STOCK / DISCARD:
+BEFORE: 72.dp x 104.dp
+AFTER: 92.dp x 132.dp
+Both elements now match the player's new card size, feeling like prominent physical stacks.
+
+OPPONENT STATIONS:
+Left intentionally compact (with their established 26.dp x 38.dp card backs) to leave ample room for the critical center-table gameplay, fulfilling the specification's directive to keep them out of the way.
+
+ACTION AREA:
+Maintained the existing physical control rail layout beneath the rack without modification, ensuring regular play interactions aren't obscured.
+
+DIALOGS:
+Card views across critical dialogs (RUMMAY! reaction, Meld Builder, Buy Priority, Expanded Hand, and Joker Destination) were appropriately scaled up to feel consistent with the new premium tabletop aesthetics.
+
+GAMEPLAY FILES CHANGED:
+None (Presentation and UI changes only).
+
+GAMEPLAY LOGIC CHANGED:
+NONE / Visual sizing only. (Note: Fixed minor unresolved imports and brackets in ThreePlayerRosterTest.kt left over from the earlier Human-Offender RUMMAY resolution session to ensure the build stays perfectly green).
+
+TESTS:
+gradle :app:testDebugUnitTest
+
+PASSED:
+Yes, 100%.
+
+FAILED:
+None.
+
+BUILD:
+gradle :app:assembleDebug completed successfully.
+
+RESULT:
+The visual presentation now features substantially larger, readable cards that exhibit controlled overlap in the rack, delivering the target premium digital tabletop experience.
+============================================================

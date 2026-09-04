@@ -555,8 +555,8 @@ fun MeldBuilderDialog(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    val cardW = 50.dp
-                                    val cardH = 70.dp
+                                    val cardW = 72.dp
+                                    val cardH = 104.dp
                                     unassignedCards.forEach { card ->
                                     val isBeingDragged = draggedCard?.id == card.id
                                     var cardRootBounds by remember { mutableStateOf(Rect.Zero) }
@@ -738,8 +738,8 @@ fun MeldBuilderDialog(
             draggedCard?.let { card ->
                 val pos = dragGlobalPosition
                 if (pos != null) {
-                    val cardWidthDp = 52.dp
-                    val cardHeightDp = 74.dp
+                    val cardWidthDp = 72.dp
+                    val cardHeightDp = 104.dp
                     val cardWidthPx = with(density) { cardWidthDp.toPx() }
                     val cardHeightPx = with(density) { cardHeightDp.toPx() }
                     Box(
@@ -915,8 +915,8 @@ private fun MeldSlotTray(
                         ) {
                             PlayingCardView(
                                 card = card,
-                                cardWidth = 56.dp,
-                                cardHeight = 80.dp,
+                                cardWidth = 72.dp,
+                                cardHeight = 104.dp,
                                 showPointsBadge = false
                             )
                         }

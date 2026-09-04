@@ -37,8 +37,8 @@ fun PlayingCardView(
     isHighlighted: Boolean = false,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    cardWidth: Dp = 72.dp,
-    cardHeight: Dp = 104.dp,
+    cardWidth: Dp = 92.dp,
+    cardHeight: Dp = 132.dp,
     showPointsBadge: Boolean = false
 ) {
     val offsetY by animateDpAsState(

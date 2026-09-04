@@ -91,8 +91,8 @@ fun BuyPriorityDialog(
                 ) {
                     PlayingCardView(
                         card = discard,
-                        cardWidth = 50.dp,
-                        cardHeight = 70.dp,
+                        cardWidth = 72.dp,
+                        cardHeight = 104.dp,
                         showPointsBadge = true
                     )
                     Spacer(modifier = Modifier.width(12.dp))
@@ -193,8 +193,8 @@ fun BuyPriorityDialog(
                                 ) {
                                     PlayingCardView(
                                         card = handCard,
-                                        cardWidth = 42.dp,
-                                        cardHeight = 58.dp,
+                                        cardWidth = 64.dp,
+                                        cardHeight = 90.dp,
                                         showPointsBadge = false
                                     )
                                 }

@@ -60,8 +60,8 @@ fun TableCenterView(
                         )
                 ) {
                     CardBackView(
-                        cardWidth = 72.dp,
-                        cardHeight = 104.dp,
+                        cardWidth = 92.dp,
+                        cardHeight = 132.dp,
                         isGreenPattern = true,
                         count = null,
                         onClick = if (isPlayerTurn && isDrawPhase) onStockClicked else null
@@ -114,8 +114,8 @@ fun TableCenterView(
                     ) {
                         PlayingCardView(
                             card = topDiscard,
-                            cardWidth = 72.dp,
-                            cardHeight = 104.dp,
+                            cardWidth = 92.dp,
+                            cardHeight = 132.dp,
                             onClick = if (isPlayerTurn && isDrawPhase) onDiscardClicked else null,
                             showPointsBadge = false
                         )
@@ -123,8 +123,8 @@ fun TableCenterView(
                 } else {
                     Box(
                         modifier = Modifier
-                            .width(56.dp)
-                            .height(80.dp)
+                            .width(92.dp)
+                            .height(132.dp)
                             .border(1.dp, GoldPlaqueBorder.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                             .background(Color(0xFF120703), RoundedCornerShape(6.dp)),
                         contentAlignment = Alignment.Center
