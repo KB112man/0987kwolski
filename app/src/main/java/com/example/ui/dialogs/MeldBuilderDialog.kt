@@ -538,20 +538,26 @@ fun MeldBuilderDialog(
                             }
                         } else {
                             val handScroll = rememberScrollState()
-                            Row(
+                            
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(76.dp)
+                                    .height(180.dp)
                                     .background(Color(0x33000000), RoundedCornerShape(6.dp))
                                     .border(1.dp, Color(0x335A2E0F), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 6.dp, vertical = 3.dp)
-                                    .horizontalScroll(handScroll),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .verticalScroll(handScroll)
                             ) {
-                                val cardW = 50.dp
-                                val cardH = 70.dp
-                                unassignedCards.forEach { card ->
+                                @OptIn(ExperimentalLayoutApi::class)
+                                FlowRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    val cardW = 50.dp
+                                    val cardH = 70.dp
+                                    unassignedCards.forEach { card ->
                                     val isBeingDragged = draggedCard?.id == card.id
                                     var cardRootBounds by remember { mutableStateOf(Rect.Zero) }
 
@@ -636,6 +642,7 @@ fun MeldBuilderDialog(
                             }
                         }
                     }
+                            }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))

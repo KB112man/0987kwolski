@@ -34,6 +34,7 @@ import com.example.ui.theme.*
 fun PlayingCardView(
     card: Card,
     isSelected: Boolean = false,
+    isHighlighted: Boolean = false,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     cardWidth: Dp = 72.dp,
@@ -51,8 +52,8 @@ fun PlayingCardView(
         else -> SuitBlack
     }
     val backgroundColor = if (card.isWild) WildBackground else CardWhite
-    val borderColor = if (isSelected) Color(0xFFFFD700) else if (card.isWild) WildBorder else CardBorder
-    val borderWidth = if (isSelected) 2.5.dp else 1.dp
+    val borderColor = if (isHighlighted) Color(0xFF22C55E) else if (isSelected) Color(0xFFFFD700) else if (card.isWild) WildBorder else CardBorder
+    val borderWidth = if (isHighlighted) 3.dp else if (isSelected) 2.5.dp else 1.dp
 
     Card(
         modifier = modifier

@@ -31,6 +31,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedCardIds = MutableStateFlow<Set<String>>(emptySet())
     val selectedCardIds: StateFlow<Set<String>> = _selectedCardIds.asStateFlow()
 
+    private val _newlyReceivedCardIds = MutableStateFlow<Set<String>>(emptySet())
+    val newlyReceivedCardIds: StateFlow<Set<String>> = _newlyReceivedCardIds.asStateFlow()
+
     // Dialog & UI flows
     private val _showPauseDialog = MutableStateFlow(false)
     val showPauseDialog: StateFlow<Boolean> = _showPauseDialog.asStateFlow()
@@ -46,6 +49,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _showHistoryDialog = MutableStateFlow(false)
     val showHistoryDialog: StateFlow<Boolean> = _showHistoryDialog.asStateFlow()
+
+    private val _showExpandedHandDialog = MutableStateFlow(false)
+    val showExpandedHandDialog: StateFlow<Boolean> = _showExpandedHandDialog.asStateFlow()
 
     private val _showMeldBuilder = MutableStateFlow(false)
     val showMeldBuilder: StateFlow<Boolean> = _showMeldBuilder.asStateFlow()
@@ -133,10 +139,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             current.add(cardId)
         }
         _selectedCardIds.value = current
+        _newlyReceivedCardIds.value = emptySet()
     }
 
     fun clearSelection() {
         _selectedCardIds.value = emptySet()
+        _newlyReceivedCardIds.value = emptySet()
     }
 
     // DRAW ACTIONS
@@ -150,6 +158,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 currentPhase = TurnPhase.PLAY_OR_DISCARD,
                 statusMessage = "You drew ${drawnCard.displayName} from Stock. Meld, Play On, or Discard."
             )
+            _newlyReceivedCardIds.value = setOf(drawnCard.id)
             _gameState.value = stateAfterDraw
             persistState(stateAfterDraw)
         }
@@ -165,6 +174,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 currentPhase = TurnPhase.PLAY_OR_DISCARD,
                 statusMessage = "You took ${takenCard.displayName} from Discard. Meld, Play On, or Discard."
             )
+            _newlyReceivedCardIds.value = setOf(takenCard.id)
             _gameState.value = stateAfterTake
             persistState(stateAfterTake)
         }
@@ -177,6 +187,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val humanId = state.humanPlayer?.id ?: return
         if (!currentBuyState.eligibleContenderIds.contains(humanId)) return
 
+        val oldHand = state.humanPlayer?.hand?.map { it.id }?.toSet() ?: emptySet()
         val (updatedState, boughtCard) = DeckEngine.buyDiscard(state, humanId)
         if (boughtCard != null) {
             val nextTurnPlayer = updatedState.players.find { it.id == currentBuyState.nextTurnPlayerId }
@@ -189,6 +200,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     "You bought ${boughtCard.displayName} (+1 draw penalty from Stock). ${nextTurnPlayer.name}'s turn."
                 }
             )
+            val newHand = finalState.humanPlayer?.hand?.map { it.id }?.toSet() ?: emptySet()
+            _newlyReceivedCardIds.value = newHand.subtract(oldHand)
             _gameState.value = finalState
             persistState(finalState)
             checkTurnState()
@@ -406,21 +419,35 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
             val callerPlayer = stateAfterRummy.players.find { it.id == aiCaller.id }!!
             val updatedCaller = callerPlayer.withUpdatedHand(callerPlayer.hand.filter { it.id != penaltyCard.id })
-            val updatedDiscards = stateAfterRummy.discardPile + penaltyCard
-            
+
+            val offenderPlayer = stateAfterRummy.players.find { it.id == currentCall.offender.id }!!
+            val updatedOffender = offenderPlayer.withUpdatedHand(offenderPlayer.hand + penaltyCard)
+
             stateAfterRummy = stateAfterRummy.copy(
-                players = stateAfterRummy.players.map { if (it.id == aiCaller.id) updatedCaller else it },
-                discardPile = updatedDiscards
+                players = stateAfterRummy.players.map { p ->
+                    when (p.id) {
+                        aiCaller.id -> updatedCaller
+                        currentCall.offender.id -> updatedOffender
+                        else -> p
+                    }
+                }
             )
 
             _activeRummayCall.value = null
 
             val updatedState = stateAfterRummy.copy(
-                statusMessage = "${aiCaller.name} called RUMMAY! and gave ${penaltyCard.displayName} as the new discard."
+                statusMessage = "${aiCaller.name} called RUMMAY! and gave ${penaltyCard.displayName} to ${currentCall.offender.name}."
             )
+            
+            // Highlight if Human is the offender
+            val human = state.humanPlayer
+            if (currentCall.offender.id == human?.id) {
+                _newlyReceivedCardIds.value = setOf(penaltyCard.id)
+            }
+            
             _gameState.value = updatedState
             persistState(updatedState)
-            advanceTurn(updatedState, penaltyCard, currentCall.offender)
+            advanceTurn(updatedState, null, currentCall.offender)
         } else {
             _activeRummayCall.value = null
             advanceTurn(state, currentCall.discardedCard, currentCall.offender)
@@ -445,21 +472,28 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         val callerPlayer = stateAfterRummy.players.find { it.id == human.id }!!
         val updatedCaller = callerPlayer.withUpdatedHand(callerPlayer.hand.filter { it.id != penaltyCard.id })
-        val updatedDiscards = stateAfterRummy.discardPile + penaltyCard
+
+        val offenderPlayer = stateAfterRummy.players.find { it.id == currentCall.offender.id }!!
+        val updatedOffender = offenderPlayer.withUpdatedHand(offenderPlayer.hand + penaltyCard)
         
         stateAfterRummy = stateAfterRummy.copy(
-            players = stateAfterRummy.players.map { if (it.id == human.id) updatedCaller else it },
-            discardPile = updatedDiscards
+            players = stateAfterRummy.players.map { p ->
+                when (p.id) {
+                    human.id -> updatedCaller
+                    currentCall.offender.id -> updatedOffender
+                    else -> p
+                }
+            }
         )
 
         _activeRummayCall.value = null
 
         val updatedState = stateAfterRummy.copy(
-            statusMessage = "You called RUMMAY! and gave ${penaltyCard.displayName} as the new discard."
+            statusMessage = "You called RUMMAY! and gave ${penaltyCard.displayName} to ${currentCall.offender.name}."
         )
         _gameState.value = updatedState
         persistState(updatedState)
-        advanceTurn(updatedState, penaltyCard, currentCall.offender)
+        advanceTurn(updatedState, null, currentCall.offender)
     }
 
     private fun advanceTurn(state: GameState, lastDiscarded: Card?, discarder: Player) {
@@ -566,12 +600,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        val oldHand = state.humanPlayer?.hand?.map { it.id }?.toSet() ?: emptySet()
         val (stateAfterPlayOn, success) = DeckEngine.playOnMeld(state, human.id, card, meldId)
         if (success) {
             _selectedCardIds.value = emptySet()
             _isLayoffDialogOpen.value = false
 
             val updatedHuman = stateAfterPlayOn.players.find { it.id == human.id }
+            if (updatedHuman != null) {
+                val newHand = updatedHuman.hand.map { it.id }.toSet()
+                _newlyReceivedCardIds.value = newHand.subtract(oldHand)
+            }
+
             if (updatedHuman != null && updatedHuman.hand.isEmpty()) {
                 handleRoundWon(stateAfterPlayOn, updatedHuman)
                 return
@@ -590,6 +630,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val state = _gameState.value ?: return
         val human = state.humanPlayer ?: return
 
+        val oldHand = state.humanPlayer?.hand?.map { it.id }?.toSet() ?: emptySet()
         val (stateAfterPlayOn, success) = DeckEngine.playOnMeld(
             state,
             human.id,
@@ -603,6 +644,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         if (success) {
             val updatedHuman = stateAfterPlayOn.players.find { it.id == human.id }
+            if (updatedHuman != null) {
+                val newHand = updatedHuman.hand.map { it.id }.toSet()
+                _newlyReceivedCardIds.value = newHand.subtract(oldHand)
+            }
+
             if (updatedHuman != null && updatedHuman.hand.isEmpty()) {
                 handleRoundWon(stateAfterPlayOn, updatedHuman)
                 return
@@ -792,6 +838,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun setDeckStatsVisible(visible: Boolean) { _showDeckStats.value = visible }
     fun setRulesVisible(visible: Boolean) { _showRules.value = visible }
     fun setHistoryDialogVisible(visible: Boolean) { _showHistoryDialog.value = visible }
+    fun setExpandedHandVisible(visible: Boolean) { _showExpandedHandDialog.value = visible }
     fun setMeldBuilderVisible(visible: Boolean) { _showMeldBuilder.value = visible }
     fun dismissLayoffDialog() { _isLayoffDialogOpen.value = false }
     fun dismissJokerDialog() { _pendingJokerReplacement.value = null }

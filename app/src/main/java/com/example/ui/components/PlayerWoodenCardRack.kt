@@ -41,7 +41,9 @@ import com.example.ui.theme.*
 fun PlayerWoodenCardRack(
     player: Player,
     selectedCardIds: Set<String>,
+    newlyReceivedCardIds: Set<String> = emptySet(),
     onCardClicked: (String) -> Unit,
+    onExpandHandClicked: () -> Unit = {},
     onSortClicked: (SortMode) -> Unit,
     onGoDownClicked: () -> Unit,
     canGoDown: Boolean,
@@ -98,40 +100,81 @@ fun PlayerWoodenCardRack(
             .testTag("player_wooden_card_rack")
     ) {
         // 1. 2-TIER STEPPED WOODEN CARD RACK (10-column slot layout)
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(6.dp, RoundedCornerShape(8.dp))
-                .border(1.dp, Color(0xFF5A2E0F), RoundedCornerShape(8.dp)),
-            color = Color(0xFF190C04),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Column(
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 5.dp, horizontal = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
+                    .shadow(6.dp, RoundedCornerShape(8.dp))
+                    .border(1.dp, Color(0xFF5A2E0F), RoundedCornerShape(8.dp)),
+                color = Color(0xFF190C04),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                rackRows.forEachIndexed { rowIndex, rowSlots ->
-                    val isRowHovered = (hoveredTarget as? DragDropTarget.RackSlot)?.rowIndex == rowIndex
-                    val targetSlotIndex = if (isRowHovered) (hoveredTarget as DragDropTarget.RackSlot).slotIndex else -1
-                    TieredWoodenShelfRow(
-                        tierNumber = rowIndex + 1,
-                        slots = rowSlots,
-                        selectedCardIds = selectedCardIds,
-                        isHovered = isRowHovered,
-                        targetSlotIndex = targetSlotIndex,
-                        activeDraggedCardId = activeDraggedCardId,
-                        onCardClicked = onCardClicked,
-                        onDragStart = { card, slotIndex, globalOffset ->
-                            onCardDragStart(card, rowIndex, slotIndex, globalOffset)
-                        },
-                        onDragMove = onCardDragMove,
-                        onDragEnd = onCardDragEnd,
-                        onDragCancel = onCardDragCancel,
-                        onRowBoundsMeasured = { rect -> onRegisterRowBounds(rowIndex, rect) },
-                        onSlotBoundsMeasured = { slotIndex, rect -> onRegisterSlotBounds(rowIndex, slotIndex, rect) }
-                    )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp, horizontal = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    rackRows.forEachIndexed { rowIndex, rowSlots ->
+                        val isRowHovered = (hoveredTarget as? DragDropTarget.RackSlot)?.rowIndex == rowIndex
+                        val targetSlotIndex = if (isRowHovered) (hoveredTarget as DragDropTarget.RackSlot).slotIndex else -1
+                        TieredWoodenShelfRow(
+                            tierNumber = rowIndex + 1,
+                            slots = rowSlots,
+                            selectedCardIds = selectedCardIds,
+                            newlyReceivedCardIds = newlyReceivedCardIds,
+                            isHovered = isRowHovered,
+                            targetSlotIndex = targetSlotIndex,
+                            activeDraggedCardId = activeDraggedCardId,
+                            onCardClicked = onCardClicked,
+                            onDragStart = { card, slotIndex, globalOffset ->
+                                onCardDragStart(card, rowIndex, slotIndex, globalOffset)
+                            },
+                            onDragMove = onCardDragMove,
+                            onDragEnd = onCardDragEnd,
+                            onDragCancel = onCardDragCancel,
+                            onRowBoundsMeasured = { rect -> onRegisterRowBounds(rowIndex, rect) },
+                            onSlotBoundsMeasured = { slotIndex, rect -> onRegisterSlotBounds(rowIndex, slotIndex, rect) }
+                        )
+                    }
+                }
+            }
+
+            if (player.hand.size > RACK_ROW_COUNT * RACK_SLOTS_PER_ROW) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 8.dp)
+                        .shadow(8.dp, RoundedCornerShape(12.dp))
+                        .border(1.5.dp, Color(0xFFFFD700), RoundedCornerShape(12.dp))
+                        .clickable { onExpandHandClicked() },
+                    color = EmeraldPrimary,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "HAND: ${player.hand.size}",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Expand",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "EXPAND",
+                            color = Color(0xFFDCFCE7),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -369,6 +412,7 @@ private fun TieredWoodenShelfRow(
     tierNumber: Int,
     slots: List<Card?>,
     selectedCardIds: Set<String>,
+    newlyReceivedCardIds: Set<String> = emptySet(),
     isHovered: Boolean,
     targetSlotIndex: Int,
     activeDraggedCardId: String?,
@@ -491,6 +535,7 @@ private fun TieredWoodenShelfRow(
                             PlayingCardView(
                                 card = card,
                                 isSelected = isSelected,
+                                isHighlighted = newlyReceivedCardIds.contains(card.id),
                                 modifier = Modifier.fillMaxSize(),
                                 showPointsBadge = false,
                                 cardWidth = 72.dp,

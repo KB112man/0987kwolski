@@ -69,11 +69,12 @@ data class Player(
             val start = i * cardsPerRow
             val end = (start + cardsPerRow).coerceAtMost(hand.size)
             val rowCards = if (start < hand.size) hand.subList(start, end) else emptyList()
-            val fullRow = MutableList<Card?>(RACK_SLOTS_PER_ROW) { null }
-            rowCards.forEachIndexed { idx, card ->
-                if (idx < RACK_SLOTS_PER_ROW) {
-                    fullRow[idx] = card
-                }
+            val fullRow = mutableListOf<Card?>()
+            rowCards.forEach { card ->
+                fullRow.add(card)
+            }
+            while (fullRow.size < RACK_SLOTS_PER_ROW) {
+                fullRow.add(null)
             }
             newRows.add(fullRow)
         }
@@ -186,11 +187,12 @@ data class Player(
             val start = i * cardsPerRow
             val end = (start + cardsPerRow).coerceAtMost(sortedCards.size)
             val rowCards = if (start < sortedCards.size) sortedCards.subList(start, end) else emptyList()
-            val fullRow = MutableList<Card?>(RACK_SLOTS_PER_ROW) { null }
-            rowCards.forEachIndexed { idx, card ->
-                if (idx < RACK_SLOTS_PER_ROW) {
-                    fullRow[idx] = card
-                }
+            val fullRow = mutableListOf<Card?>()
+            rowCards.forEach { card ->
+                fullRow.add(card)
+            }
+            while (fullRow.size < RACK_SLOTS_PER_ROW) {
+                fullRow.add(null)
             }
             newRows.add(fullRow)
         }

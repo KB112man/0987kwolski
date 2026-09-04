@@ -36,6 +36,7 @@ fun GameScreen(
 ) {
     val state by viewModel.gameState.collectAsState()
     val selectedCardIds by viewModel.selectedCardIds.collectAsState()
+    val newlyReceivedCardIds by viewModel.newlyReceivedCardIds.collectAsState()
     val autoSortEnabled by viewModel.autoSortEnabled.collectAsState()
 
     // Dialog state collectors
@@ -43,6 +44,7 @@ fun GameScreen(
     val showScoreboard by viewModel.showScoreboard.collectAsState()
     val showDeckStats by viewModel.showDeckStats.collectAsState()
     val showRules by viewModel.showRules.collectAsState()
+    val showExpandedHandDialog by viewModel.showExpandedHandDialog.collectAsState()
     val showHistoryDialog by viewModel.showHistoryDialog.collectAsState()
     val matchHistory by viewModel.matchHistory.collectAsState()
     val showMeldBuilder by viewModel.showMeldBuilder.collectAsState()
@@ -274,7 +276,9 @@ fun GameScreen(
                     PlayerWoodenCardRack(
                         player = humanPlayer,
                         selectedCardIds = selectedCardIds,
+                        newlyReceivedCardIds = newlyReceivedCardIds,
                         onCardClicked = { cardId -> viewModel.toggleCardSelection(cardId) },
+                        onExpandHandClicked = { viewModel.setExpandedHandVisible(true) },
                         onSortClicked = { mode -> viewModel.sortHumanHand(mode) },
                         onGoDownClicked = { viewModel.setMeldBuilderVisible(true) },
                         canGoDown = !humanPlayer.isDown && isHumanTurn && isPlayOrDiscardPhase,
@@ -427,6 +431,17 @@ fun GameScreen(
             DeckStatsDialog(
                 state = currentGameState,
                 onDismiss = { viewModel.setDeckStatsVisible(false) }
+            )
+        }
+        
+        // Expanded Hand Dialog
+        if (showExpandedHandDialog && humanPlayer != null) {
+            ExpandedHandDialog(
+                player = humanPlayer,
+                selectedCardIds = selectedCardIds,
+                newlyReceivedCardIds = newlyReceivedCardIds,
+                onCardClicked = { cardId -> viewModel.toggleCardSelection(cardId) },
+                onDismissRequest = { viewModel.setExpandedHandVisible(false) }
             )
         }
 
