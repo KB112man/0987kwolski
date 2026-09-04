@@ -105,13 +105,13 @@ fun SpatialMeldCard(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy((-16).dp)
+            horizontalArrangement = Arrangement.spacedBy((-32).dp)
         ) {
             meld.cards.forEach { card ->
                 PlayingCardView(
                     card = card,
-                    cardWidth = 40.dp,
-                    cardHeight = 58.dp,
+                    cardWidth = 64.dp,
+                    cardHeight = 90.dp,
                     showPointsBadge = false
                 )
             }

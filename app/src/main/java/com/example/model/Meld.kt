@@ -216,6 +216,10 @@ data class Meld(
                     return null
                 }
             }
+            // Check for adjacent jokers
+            for (i in 0 until result.size - 1) {
+                if (result[i].isWild && result[i+1].isWild) return null
+            }
             result.addAll(naturals)
             result.addAll(jokers)
             return result

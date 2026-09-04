@@ -908,8 +908,8 @@ private fun MeldSlotTray(
                         ) {
                             PlayingCardView(
                                 card = card,
-                                cardWidth = 44.dp,
-                                cardHeight = 62.dp,
+                                cardWidth = 56.dp,
+                                cardHeight = 80.dp,
                                 showPointsBadge = false
                             )
                         }

@@ -36,8 +36,8 @@ fun PlayingCardView(
     isSelected: Boolean = false,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    cardWidth: Dp = 54.dp,
-    cardHeight: Dp = 76.dp,
+    cardWidth: Dp = 72.dp,
+    cardHeight: Dp = 104.dp,
     showPointsBadge: Boolean = false
 ) {
     val offsetY by animateDpAsState(
@@ -238,8 +238,8 @@ fun PlayingCardView(
 @Composable
 fun CardBackView(
     modifier: Modifier = Modifier,
-    cardWidth: Dp = 54.dp,
-    cardHeight: Dp = 76.dp,
+    cardWidth: Dp = 72.dp,
+    cardHeight: Dp = 104.dp,
     isGreenPattern: Boolean = false,
     isBurgundyPattern: Boolean = false,
     count: Int? = null,

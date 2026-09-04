@@ -105,7 +105,7 @@ fun ScoreboardDialog(
                             color = EmeraldAccentLight,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
-                            modifier = Modifier.weight(1.8f)
+                            modifier = Modifier.weight(2.4f)
                         )
                         for (lvl in 1..7) {
                             Text(
@@ -114,7 +114,7 @@ fun ScoreboardDialog(
                                 fontSize = 9.5.sp,
                                 fontWeight = if (lvl == currentLevel) FontWeight.Black else FontWeight.Bold,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(0.85f)
                             )
                         }
                         Text(
@@ -123,7 +123,7 @@ fun ScoreboardDialog(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             textAlign = TextAlign.End,
-                            modifier = Modifier.weight(1.4f)
+                            modifier = Modifier.weight(1.2f)
                         )
                     }
 
@@ -145,13 +145,15 @@ fun ScoreboardDialog(
                                 .padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1.8f)) {
+                            Column(modifier = Modifier.weight(2.4f)) {
                                 Text(
                                     text = "${rank + 1}. ${player.name}",
                                     color = if (player.isHuman) EmeraldAccentLight else TextPrimary,
-                                    fontSize = 11.sp,
+                                    fontSize = 10.5.sp,
+                                    lineHeight = 12.5.sp,
                                     fontWeight = if (player.isHuman) FontWeight.Black else FontWeight.Bold,
-                                    maxLines = 1
+                                    maxLines = 2,
+                                    softWrap = true
                                 )
                                 if (player.isDown) {
                                     Text(
@@ -170,7 +172,7 @@ fun ScoreboardDialog(
                                     fontSize = 10.sp,
                                     fontWeight = if (score == 0) FontWeight.Black else FontWeight.Normal,
                                     textAlign = TextAlign.Center,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(0.85f)
                                 )
                             }
                             Text(
@@ -179,7 +181,7 @@ fun ScoreboardDialog(
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Black,
                                 textAlign = TextAlign.End,
-                                modifier = Modifier.weight(1.4f)
+                                modifier = Modifier.weight(1.2f)
                             )
                         }
                     }

@@ -391,7 +391,7 @@ private fun TieredWoodenShelfRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(60.dp)
+            .height(115.dp)
             .onGloballyPositioned { coords -> onRowBoundsMeasured(coords.boundsInRoot()) }
             .border(
                 if (isHovered) 1.5.dp else 0.75.dp,
@@ -401,128 +401,132 @@ private fun TieredWoodenShelfRow(
         color = Color(0xFF120702),
         shape = RoundedCornerShape(6.dp)
     ) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(shelfBgGradient)
-                .padding(horizontal = 2.dp, vertical = 2.dp),
-            contentAlignment = Alignment.Center
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                slots.take(RACK_SLOTS_PER_ROW).forEachIndexed { slotIndex, card ->
-                    val isSlotHovered = isHovered && targetSlotIndex == slotIndex
-                    var slotRootBounds by remember { mutableStateOf(Rect.Zero) }
+            val availableWidth = maxWidth
+            val maxSlots = RACK_SLOTS_PER_ROW
+            val cardWidth = 72.dp
+            // Calculate step size so that maxSlots fit within availableWidth
+            val step = if (maxSlots > 1) (availableWidth - cardWidth) / (maxSlots - 1).toFloat() else 0.dp
 
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .onGloballyPositioned { coords ->
-                                val bounds = coords.boundsInRoot()
-                                slotRootBounds = bounds
-                                onSlotBoundsMeasured(slotIndex, bounds)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (card != null) {
-                            val isSelected = selectedCardIds.contains(card.id)
-                            val isBeingDragged = activeDraggedCardId == card.id
-                            val elevationOffset by animateDpAsState(
-                                targetValue = if (isSelected) (-4).dp else 0.dp,
-                                label = "card_elevation"
-                            )
+            slots.take(RACK_SLOTS_PER_ROW).forEachIndexed { slotIndex, card ->
+                val isSlotHovered = isHovered && targetSlotIndex == slotIndex
+                var slotRootBounds by remember { mutableStateOf(Rect.Zero) }
 
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .offset(y = elevationOffset)
-                                    .zIndex(if (isSelected) 50f else (slotIndex + 1).toFloat())
-                                    .graphicsLayer {
-                                        alpha = if (isBeingDragged) 0.25f else 1f
-                                    }
-                                    .border(
-                                        if (isSelected) 2.dp else if (isSlotHovered) 2.dp else 0.dp,
-                                        if (isSelected) Color(0xFFFFD700) else if (isSlotHovered) Color(0xFF22C55E) else Color.Transparent,
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .pointerInput(card.id) {
-                                        awaitEachGesture {
-                                            val down = awaitFirstDown(requireUnconsumed = false)
-                                            var isDragging = false
-                                            var totalDrag = Offset.Zero
-                                            val initialTouchPos = if (slotRootBounds.width > 0) {
-                                                slotRootBounds.topLeft + down.position
-                                            } else {
-                                                down.position
-                                            }
+                Box(
+                    modifier = Modifier
+                        .offset(x = step * slotIndex)
+                        .width(cardWidth)
+                        .fillMaxHeight()
+                        .onGloballyPositioned { coords ->
+                            val bounds = coords.boundsInRoot()
+                            slotRootBounds = bounds
+                            onSlotBoundsMeasured(slotIndex, bounds)
+                        }
+                        .zIndex(if (selectedCardIds.contains(card?.id)) 50f else (slotIndex + 1).toFloat()),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (card != null) {
+                        val isSelected = selectedCardIds.contains(card.id)
+                        val isBeingDragged = activeDraggedCardId == card.id
+                        val elevationOffset by animateDpAsState(
+                            targetValue = if (isSelected) (-8).dp else 0.dp,
+                            label = "card_elevation"
+                        )
 
-                                            while (true) {
-                                                val event = awaitPointerEvent()
-                                                val change = event.changes.firstOrNull { it.id == down.id }
-                                                if (change == null || !change.pressed) {
-                                                    if (isDragging) {
-                                                        onDragEnd()
-                                                    } else {
-                                                        onCardClicked(card.id)
-                                                    }
-                                                    break
-                                                }
-                                                val dragDelta = change.positionChange()
-                                                totalDrag += dragDelta
-                                                if (!isDragging && totalDrag.getDistance() > 8f) {
-                                                    isDragging = true
-                                                    onDragStart(card, slotIndex, initialTouchPos + totalDrag)
-                                                }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .offset(y = elevationOffset)
+                                .graphicsLayer {
+                                    alpha = if (isBeingDragged) 0.25f else 1f
+                                }
+                                .border(
+                                    if (isSelected) 3.dp else if (isSlotHovered) 2.dp else 0.dp,
+                                    if (isSelected) Color(0xFFFFD700) else if (isSlotHovered) Color(0xFF22C55E) else Color.Transparent,
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .pointerInput(card.id) {
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        var isDragging = false
+                                        var totalDrag = Offset.Zero
+                                        val initialTouchPos = if (slotRootBounds.width > 0) {
+                                            slotRootBounds.topLeft + down.position
+                                        } else {
+                                            down.position
+                                        }
+
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull { it.id == down.id }
+                                            if (change == null || !change.pressed) {
                                                 if (isDragging) {
-                                                    change.consume()
-                                                    onDragMove(dragDelta)
+                                                    onDragEnd()
+                                                } else {
+                                                    onCardClicked(card.id)
                                                 }
+                                                break
+                                            }
+                                            val dragDelta = change.positionChange()
+                                            totalDrag += dragDelta
+                                            if (!isDragging && totalDrag.getDistance() > 8f) {
+                                                isDragging = true
+                                                onDragStart(card, slotIndex, initialTouchPos + totalDrag)
+                                            }
+                                            if (isDragging) {
+                                                change.consume()
+                                                onDragMove(dragDelta)
                                             }
                                         }
                                     }
-                                    .testTag("player_card_${card.id}")
-                            ) {
-                                PlayingCardView(
-                                    card = card,
-                                    isSelected = isSelected,
-                                    modifier = Modifier.fillMaxSize(),
-                                    showPointsBadge = false
+                                }
+                                .testTag("player_card_${card.id}")
+                        ) {
+                            PlayingCardView(
+                                card = card,
+                                isSelected = isSelected,
+                                modifier = Modifier.fillMaxSize(),
+                                showPointsBadge = false,
+                                cardWidth = 72.dp,
+                                cardHeight = 104.dp
+                            )
+                        }
+                    } else {
+                        // Empty Shelf Slot Groove
+                        Box(
+                            modifier = Modifier
+                                .width(cardWidth * 0.7f)
+                                .height(104.dp * 0.8f)
+                                .background(
+                                    if (isSlotHovered) Color(0x3322C55E) else Color(0x11000000),
+                                    RoundedCornerShape(4.dp)
                                 )
-                            }
-                        } else {
-                            // Empty Shelf Slot Groove
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        if (isSlotHovered) Color(0x3322C55E) else Color(0x22000000),
-                                        RoundedCornerShape(4.dp)
+                                .border(
+                                    1.dp,
+                                    if (isSlotHovered) Color(0xFF22C55E) else Color(0x225A2E0F),
+                                    RoundedCornerShape(4.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSlotHovered) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .background(Color(0xFF22C55E), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Drop here",
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(12.dp)
                                     )
-                                    .border(
-                                        1.dp,
-                                        if (isSlotHovered) Color(0xFF22C55E) else Color(0x335A2E0F),
-                                        RoundedCornerShape(4.dp)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isSlotHovered) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(14.dp)
-                                            .background(Color(0xFF22C55E), RoundedCornerShape(7.dp)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = "Drop here",
-                                            tint = Color.Black,
-                                            modifier = Modifier.size(10.dp)
-                                        )
-                                    }
                                 }
                             }
                         }

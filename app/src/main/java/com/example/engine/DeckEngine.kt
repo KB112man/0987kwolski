@@ -2,9 +2,13 @@ package com.example.engine
 
 import com.example.model.Card
 import com.example.model.ContractLevel
+import com.example.model.PendingBuyPriority
 import com.example.model.Player
 import com.example.model.Rank
 import com.example.model.Suit
+import com.example.model.Meld
+import com.example.model.MeldType
+import com.example.model.TurnTransition
 import kotlin.random.Random
 
 data class DealResult(
@@ -138,11 +142,11 @@ object DeckEngine {
     }
 
     fun startNewGame(humanName: String = "You"): com.example.model.GameState {
+        val opponentNames = NameGenerator.generateUniqueNames(2)
         val initialPlayers = listOf(
             Player(id = "player_human", name = humanName, isHuman = true, avatarIndex = 0),
-            Player(id = "player_top", name = "Wicked Gremlin", isHuman = false, avatarIndex = 1, personality = "Strategic"),
-            Player(id = "player_left", name = "Jolly Otter", isHuman = false, avatarIndex = 2, personality = "Aggressive"),
-            Player(id = "player_right", name = "Silly Muffin", isHuman = false, avatarIndex = 3, personality = "Cautious")
+            Player(id = "player_top", name = opponentNames[0], isHuman = false, avatarIndex = 1, personality = "Strategic"),
+            Player(id = "player_left", name = opponentNames[1], isHuman = false, avatarIndex = 2, personality = "Aggressive")
         )
         val level1Contract = ContractLevel.fromLevelNumber(1)
         val deal = dealNewRound(initialPlayers, level1Contract)
@@ -321,8 +325,53 @@ object DeckEngine {
 
         if (!targetMeld.canAddCard(card)) return Pair(state, false)
 
-        val updatedTargetMeld = targetMeld.withCardAdded(card)
-        val remainingHand = player.hand.filter { it.id != card.id }
+        var returnedJoker: Card? = null
+        var cardsToAlign = targetMeld.cards + card
+        var specificConfig: List<Card>? = null
+
+        if (targetMeld.type == MeldType.RUN && !card.isWild) {
+            val missingRanks = targetMeld.getRepresentedRanksForJokers()
+            if (missingRanks.contains(card.rank)) {
+                val jokerToRemove = targetMeld.cards.first { it.isWild }
+                
+                val testCardsWithJoker = targetMeld.cards.filter { it.id != jokerToRemove.id } + card + jokerToRemove
+                val possibleConfigs = Meld.determineAllValidRunConfigurations(testCardsWithJoker)
+                
+                if (possibleConfigs.isNotEmpty()) {
+                    val headConfig = possibleConfigs.find { it.first().isWild }
+                    val tailConfig = possibleConfigs.find { it.last().isWild }
+                    
+                    if (shiftWildToHead && headConfig != null) {
+                        specificConfig = headConfig
+                        cardsToAlign = testCardsWithJoker
+                    } else if (!shiftWildToHead && tailConfig != null) {
+                        specificConfig = tailConfig
+                        cardsToAlign = testCardsWithJoker
+                    } else {
+                        specificConfig = possibleConfigs.first()
+                        cardsToAlign = testCardsWithJoker
+                    }
+                } else {
+                    returnedJoker = jokerToRemove
+                    cardsToAlign = targetMeld.cards.filter { it.id != jokerToRemove.id } + card
+                }
+            }
+        }
+
+        val alignedCards = if (specificConfig != null) {
+            specificConfig
+        } else if (targetMeld.type == MeldType.RUN) {
+            Meld.determineAllValidRunConfigurations(cardsToAlign).firstOrNull() ?: cardsToAlign
+        } else {
+            cardsToAlign
+        }
+
+        val updatedTargetMeld = targetMeld.copy(cards = alignedCards)
+        
+        val remainingHand = player.hand.filter { it.id != card.id }.toMutableList()
+        if (returnedJoker != null) {
+            remainingHand.add(returnedJoker)
+        }
         val updatedPlayer = player.withUpdatedHand(remainingHand)
 
         val updatedTableMelds = state.allTableMelds.map {
@@ -368,6 +417,51 @@ object DeckEngine {
 
     fun repackRackSlots(player: Player): Player {
         return player.reorganizeHandIntoRack()
+    }
+
+    /**
+     * Exact 3-player turn order and buy priority calculations:
+     * discarderIndex = index of player who discarded
+     * nextPlayerIndex = (discarderIndex + 1) % players.size
+     * otherPlayerIndex = (discarderIndex + 2) % players.size
+     *
+     * The discard is reserved as TO YOU for nextPlayer.
+     * Only otherPlayer receives the out-of-turn BUY opportunity.
+     */
+    fun calculateTurnAndBuyPriority(
+        players: List<Player>,
+        discarderId: String,
+        lastDiscarded: Card?
+    ): TurnTransition {
+        val discarderIndex = players.indexOfFirst { it.id == discarderId }
+            .takeIf { it >= 0 } ?: 0
+        val numPlayers = players.size
+        val nextPlayerIndex = (discarderIndex + 1) % numPlayers
+        val previousPlayerIndex = (discarderIndex + numPlayers - 1) % numPlayers
+
+        val nextPlayer = players[nextPlayerIndex]
+        val previousPlayer = players[previousPlayerIndex]
+
+        val pendingBuy = if (lastDiscarded != null) {
+            PendingBuyPriority(
+                discard = lastDiscarded,
+                discarderId = players[discarderIndex].id,
+                discarderName = players[discarderIndex].name,
+                nextTurnPlayerId = nextPlayer.id,
+                interestedBuyerIds = listOf(previousPlayer.id)
+            )
+        } else {
+            null
+        }
+
+        return TurnTransition(
+            discarderIndex = discarderIndex,
+            nextPlayerIndex = nextPlayerIndex,
+            otherPlayerIndex = previousPlayerIndex,
+            nextPlayer = nextPlayer,
+            otherPlayer = previousPlayer,
+            pendingBuyPriority = pendingBuy
+        )
     }
 
     fun nextTurn(state: com.example.model.GameState): com.example.model.GameState {

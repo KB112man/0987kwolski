@@ -113,14 +113,15 @@ object AiPlayerEngine {
         ai: Player,
         level: ContractLevel,
         tableMelds: List<Meld>
-    ): Card {
+    ): Card? {
         val nonWilds = ai.hand.filter { !it.isWild }
         val nonRummyCandidates = nonWilds.filter { !MeldDetector.isRummyCard(it, tableMelds) }
         val candidates = when {
             nonRummyCandidates.isNotEmpty() -> nonRummyCandidates
             nonWilds.isNotEmpty() -> nonWilds
-            else -> ai.hand
+            else -> emptyList()
         }
+        if (candidates.isEmpty()) return null
         return candidates.maxByOrNull { card ->
             var discardScore = card.pointValue * 2
             val sameRankCount = ai.hand.count { !it.isWild && it.id != card.id && it.rank == card.rank }
@@ -137,7 +138,7 @@ object AiPlayerEngine {
         ai: Player,
         level: ContractLevel,
         tableMelds: List<Meld>
-    ): Card = chooseDiscard(ai, level, tableMelds)
+    ): Card? = chooseDiscard(ai, level, tableMelds)
 
     fun findAiPlayOnMoves(ai: Player, tableMelds: List<Meld>): List<AiPlayOnMove> {
         val moves = mutableListOf<AiPlayOnMove>()

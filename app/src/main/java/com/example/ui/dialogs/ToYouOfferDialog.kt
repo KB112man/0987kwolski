@@ -71,7 +71,7 @@ fun ToYouOfferDialog(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "YOUR TURN: TAKE DISCARD?",
+                        text = "STOCK OR TO YOU",
                         color = EmeraldAccentLight,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Black,
@@ -130,7 +130,7 @@ fun ToYouOfferDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Because it is YOUR turn, taking this discard has NO penalty cards (1 card drawn).",
+                        text = "Because this discard is TO YOU, taking it has NO penalty (1 card drawn).",
                         color = EmeraldAccentLight,
                         fontSize = 11.sp,
                         textAlign = TextAlign.Center,
@@ -234,7 +234,7 @@ fun ToYouOfferDialog(
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("TAKE DISCARD", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        Text("TAKE TO YOU", fontSize = 12.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }

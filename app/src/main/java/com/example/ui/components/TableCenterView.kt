@@ -60,8 +60,8 @@ fun TableCenterView(
                         )
                 ) {
                     CardBackView(
-                        cardWidth = 56.dp,
-                        cardHeight = 80.dp,
+                        cardWidth = 72.dp,
+                        cardHeight = 104.dp,
                         isGreenPattern = true,
                         count = null,
                         onClick = if (isPlayerTurn && isDrawPhase) onStockClicked else null
@@ -114,8 +114,8 @@ fun TableCenterView(
                     ) {
                         PlayingCardView(
                             card = topDiscard,
-                            cardWidth = 56.dp,
-                            cardHeight = 80.dp,
+                            cardWidth = 72.dp,
+                            cardHeight = 104.dp,
                             onClick = if (isPlayerTurn && isDrawPhase) onDiscardClicked else null,
                             showPointsBadge = false
                         )

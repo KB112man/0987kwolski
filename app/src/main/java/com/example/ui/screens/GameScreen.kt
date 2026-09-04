@@ -75,7 +75,6 @@ fun GameScreen(
 
     val topOpponent = currentGameState.topOpponent
     val leftOpponent = currentGameState.leftOpponent
-    val rightOpponent = currentGameState.rightOpponent
     val humanPlayer = currentGameState.humanPlayer
 
     val isHumanTurn = currentGameState.isHumanTurn
@@ -138,7 +137,7 @@ fun GameScreen(
                 }
             }
 
-            // 2. TOP OPPONENT (e.g. Wicked Gremlin) + Melds directly below rack!
+            // 2. TOP OPPONENT (AI #1) + Melds directly below rack!
             if (topOpponent != null) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -173,14 +172,13 @@ fun GameScreen(
                 }
             }
 
-            // 3. MIDDLE TABLE (Left Opponent + Melds, Center Stock/Discard, Right Opponent Melds + Rack)
-            Row(
+            // 3. MIDDLE TABLE (Left Opponent on left, Center Stock/Discard centered, exactly 3 players)
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                contentAlignment = Alignment.Center
             ) {
                 val hoveredMeldId = when (val h = hoveredTarget) {
                     is DragDropTarget.TableMeld -> h.meldId
@@ -188,12 +186,33 @@ fun GameScreen(
                     else -> null
                 }
 
+                // CENTER TABLE (STOCK & DISCARD PILES) - Centered
+                TableCenterView(
+                    stockCount = currentGameState.drawDeck.size,
+                    topDiscard = currentGameState.topDiscard,
+                    discardPileCount = currentGameState.discardPile.size,
+                    isPlayerTurn = isHumanTurn,
+                    isDrawPhase = currentGameState.currentPhase == TurnPhase.DRAW,
+                    onStockClicked = { viewModel.onHumanDrawFromStock() },
+                    onDiscardClicked = {
+                        if (isHumanTurn && currentGameState.currentPhase == TurnPhase.DRAW) {
+                            viewModel.onHumanTakeDiscard()
+                        } else if (currentGameState.pendingBuyPriority != null && currentGameState.pendingBuyPriority!!.eligibleContenderIds.contains(humanPlayer?.id)) {
+                            viewModel.onHumanBuyDiscard()
+                        }
+                    },
+                    isDiscardHovered = hoveredTarget is DragDropTarget.DiscardPile,
+                    onRegisterStockBounds = { rect -> dragDropRegistry.registerStockPile(rect) },
+                    onRegisterDiscardBounds = { rect -> dragDropRegistry.registerDiscardPile(rect) }
+                )
+
                 // LEFT OPPONENT SEAT (Rack + Melds to the right)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (leftOpponent != null) {
+                if (leftOpponent != null) {
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         OpponentWoodenRackView(
                             player = leftOpponent,
                             isCurrentTurn = currentGameState.currentPlayer.id == leftOpponent.id,
@@ -213,55 +232,6 @@ fun GameScreen(
                             onRegisterMeldBounds = { meldId, rect ->
                                 dragDropRegistry.registerMeld(meldId, rect)
                             }
-                        )
-                    }
-                }
-
-                // CENTER TABLE (STOCK & DISCARD PILES)
-                TableCenterView(
-                    stockCount = currentGameState.drawDeck.size,
-                    topDiscard = currentGameState.topDiscard,
-                    discardPileCount = currentGameState.discardPile.size,
-                    isPlayerTurn = isHumanTurn,
-                    isDrawPhase = currentGameState.currentPhase == TurnPhase.DRAW,
-                    onStockClicked = { viewModel.onHumanDrawFromStock() },
-                    onDiscardClicked = {
-                        if (isHumanTurn && currentGameState.currentPhase == TurnPhase.DRAW) {
-                            viewModel.onHumanTakeDiscard()
-                        } else if (currentGameState.pendingBuyPriority != null) {
-                            viewModel.onHumanBuyDiscard()
-                        }
-                    },
-                    isDiscardHovered = hoveredTarget is DragDropTarget.DiscardPile,
-                    onRegisterStockBounds = { rect -> dragDropRegistry.registerStockPile(rect) },
-                    onRegisterDiscardBounds = { rect -> dragDropRegistry.registerDiscardPile(rect) }
-                )
-
-                // RIGHT OPPONENT SEAT (Melds to the left + Rack)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (rightOpponent != null) {
-                        SpatialPlayerMeldsView(
-                            melds = rightOpponent.laidMelds,
-                            isVerticalStack = true,
-                            onMeldClicked = { meldId ->
-                                val selectedCard = humanPlayer?.hand?.find { selectedCardIds.contains(it.id) }
-                                if (selectedCard != null && isHumanDown) {
-                                    viewModel.onLayoffToMeld(meldId, selectedCard)
-                                }
-                            },
-                            isHumanDown = isHumanDown,
-                            hoveredMeldId = hoveredMeldId,
-                            onRegisterMeldBounds = { meldId, rect ->
-                                dragDropRegistry.registerMeld(meldId, rect)
-                            }
-                        )
-                        OpponentWoodenRackView(
-                            player = rightOpponent,
-                            isCurrentTurn = currentGameState.currentPlayer.id == rightOpponent.id,
-                            position = OpponentPosition.RIGHT
                         )
                     }
                 }
@@ -490,9 +460,11 @@ fun GameScreen(
 
         // To You Offer Dialog (when human turn starts with discard available)
         if (isHumanTurn && currentGameState.currentPhase == TurnPhase.DRAW && currentGameState.topDiscard != null && buyPriority == null) {
+            val prevPlayerIndex = (currentGameState.currentTurnPlayerIndex + currentGameState.players.size - 1) % currentGameState.players.size
+            val prevPlayer = currentGameState.players.getOrNull(prevPlayerIndex)
             ToYouOfferDialog(
                 discard = currentGameState.topDiscard!!,
-                discarderName = "Discard Pile",
+                discarderName = prevPlayer?.name ?: "Discard Pile",
                 player = humanPlayer,
                 contractLevel = currentGameState.contractLevel,
                 onTakeClicked = { viewModel.onHumanTakeDiscard() },

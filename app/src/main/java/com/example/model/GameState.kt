@@ -22,6 +22,15 @@ data class PendingBuyPriority(
     val eligibleContenderIds: List<String> get() = interestedBuyerIds
 }
 
+data class TurnTransition(
+    val discarderIndex: Int,
+    val nextPlayerIndex: Int,
+    val otherPlayerIndex: Int,
+    val nextPlayer: Player,
+    val otherPlayer: Player,
+    val pendingBuyPriority: PendingBuyPriority?
+)
+
 data class PendingRummayCall(
     val discardedCard: Card,
     val offenderId: String,
@@ -106,7 +115,7 @@ data class GameState(
         get() = aiOpponents.getOrNull(1)
 
     val rightOpponent: Player?
-        get() = aiOpponents.getOrNull(2)
+        get() = null
 
     val allTrackedCards: List<Card>
         get() {

@@ -173,12 +173,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     // BUY DISCARD
     fun onHumanBuyDiscard() {
         val state = _gameState.value ?: return
+        val currentBuyState = state.pendingBuyPriority ?: return
         val humanId = state.humanPlayer?.id ?: return
+        if (!currentBuyState.eligibleContenderIds.contains(humanId)) return
+
         val (updatedState, boughtCard) = DeckEngine.buyDiscard(state, humanId)
         if (boughtCard != null) {
+            val nextTurnPlayer = updatedState.players.find { it.id == currentBuyState.nextTurnPlayerId }
+                ?: updatedState.currentPlayer
             val finalState = updatedState.copy(
                 pendingBuyPriority = null,
-                statusMessage = "You bought ${boughtCard.displayName} (+1 draw penalty from Stock)."
+                statusMessage = if (nextTurnPlayer.isHuman) {
+                    "You bought ${boughtCard.displayName} (+1 draw penalty from Stock). Your turn."
+                } else {
+                    "You bought ${boughtCard.displayName} (+1 draw penalty from Stock). ${nextTurnPlayer.name}'s turn."
+                }
             )
             _gameState.value = finalState
             persistState(finalState)
@@ -189,27 +198,38 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun onHumanPassBuy() {
         val state = _gameState.value ?: return
         val currentBuyState = state.pendingBuyPriority ?: return
-        
-        if (currentBuyState.eligibleContenderIds.firstOrNull() == state.humanPlayer?.id) {
-            val afterPass = state.copy(
-                pendingBuyPriority = currentBuyState.copy(
-                    interestedBuyerIds = currentBuyState.eligibleContenderIds.drop(1)
-                )
-            )
-            _gameState.value = afterPass
-            persistState(afterPass)
-            processBuyPrioritySequence()
-        }
+        val humanId = state.humanPlayer?.id ?: return
+        if (!currentBuyState.eligibleContenderIds.contains(humanId)) return
+
+        val nextTurnPlayer = state.players.find { it.id == currentBuyState.nextTurnPlayerId }
+            ?: state.currentPlayer
+        val afterPass = state.copy(
+            pendingBuyPriority = null,
+            statusMessage = if (nextTurnPlayer.isHuman) {
+                "Your turn — Draw from Stock or Take Discard."
+            } else {
+                "${nextTurnPlayer.name}'s turn — Draw from Stock or Take Discard."
+            }
+        )
+        _gameState.value = afterPass
+        persistState(afterPass)
+        checkTurnState()
     }
 
     private fun processBuyPrioritySequence() {
         val state = _gameState.value ?: return
         val currentBuyState = state.pendingBuyPriority ?: return
 
-        if (currentBuyState.eligibleContenderIds.isEmpty()) {
+        val candidateBuyerId = currentBuyState.eligibleContenderIds.firstOrNull()
+        if (candidateBuyerId == null) {
+            val nextTurnPlayer = state.players.find { it.id == currentBuyState.nextTurnPlayerId } ?: state.currentPlayer
             val afterPass = state.copy(
                 pendingBuyPriority = null,
-                statusMessage = "${state.players.find { it.id == currentBuyState.nextTurnPlayerId }?.name}'s turn."
+                statusMessage = if (nextTurnPlayer.isHuman) {
+                    "Your turn — Draw from Stock or Take Discard."
+                } else {
+                    "${nextTurnPlayer.name}'s turn — Draw from Stock or Take Discard."
+                }
             )
             _gameState.value = afterPass
             persistState(afterPass)
@@ -217,43 +237,59 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val nextContenderId = currentBuyState.eligibleContenderIds.first()
-        val nextContender = state.players.find { it.id == nextContenderId } ?: return
+        val candidateBuyer = state.players.find { it.id == candidateBuyerId } ?: return
 
-        if (nextContender.isHuman) {
+        if (candidateBuyer.isHuman) {
             // WAIT INDEFINITELY for human to press Buy or Pass.
-            val waitState = state.copy(statusMessage = "Waiting for your Buy/Pass decision...")
+            val waitState = state.copy(statusMessage = "BUY PRIORITY — Your decision")
             _gameState.value = waitState
             return
         }
 
         // It is an AI's turn to decide on the Buy
-        val waitAiState = state.copy(statusMessage = "Checking if ${nextContender.name} wants to Buy...")
+        val waitAiState = state.copy(statusMessage = "Checking if ${candidateBuyer.name} wants to Buy...")
         _gameState.value = waitAiState
 
         viewModelScope.launch {
             delay(1000)
             val currentState = _gameState.value ?: return@launch
             val currentPriority = currentState.pendingBuyPriority ?: return@launch
+            if (currentPriority.eligibleContenderIds.firstOrNull() != candidateBuyerId) return@launch
 
-            val wantsBuy = AiPlayerEngine.shouldAiBuyDiscard(nextContender, currentPriority.discardCard, currentState.contractLevel, currentState.allTableMelds)
+            val wantsBuy = AiPlayerEngine.shouldAiBuyDiscard(
+                candidateBuyer,
+                currentPriority.discardCard,
+                currentState.contractLevel,
+                currentState.allTableMelds
+            )
+            val nextTurnPlayer = currentState.players.find { it.id == currentPriority.nextTurnPlayerId }
+                ?: currentState.currentPlayer
+
             if (wantsBuy) {
-                val (boughtState, _) = DeckEngine.buyDiscard(currentState, nextContenderId)
+                val (boughtState, _) = DeckEngine.buyDiscard(currentState, candidateBuyerId)
                 val afterBuy = boughtState.copy(
                     pendingBuyPriority = null,
-                    statusMessage = "${nextContender.name} bought ${currentPriority.discardCard.displayName}."
+                    statusMessage = if (nextTurnPlayer.isHuman) {
+                        "${candidateBuyer.name} bought ${currentPriority.discardCard.displayName}. Your turn — Draw from Stock."
+                    } else {
+                        "${candidateBuyer.name} bought ${currentPriority.discardCard.displayName}. ${nextTurnPlayer.name}'s turn."
+                    }
                 )
                 _gameState.value = afterBuy
                 persistState(afterBuy)
                 checkTurnState()
             } else {
                 val afterPass = currentState.copy(
-                    pendingBuyPriority = currentPriority.copy(
-                        interestedBuyerIds = currentPriority.eligibleContenderIds.drop(1)
-                    )
+                    pendingBuyPriority = null,
+                    statusMessage = if (nextTurnPlayer.isHuman) {
+                        "${candidateBuyer.name} passed. Your turn — Draw from Stock or Take Discard."
+                    } else {
+                        "${candidateBuyer.name} passed. ${nextTurnPlayer.name}'s turn."
+                    }
                 )
                 _gameState.value = afterPass
-                processBuyPrioritySequence()
+                persistState(afterPass)
+                checkTurnState()
             }
         }
     }
@@ -297,13 +333,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun executeDiscard(state: GameState, player: Player, card: Card) {
         _selectedCardIds.value = emptySet()
-        
-        if (state.contractLevel.noDiscard && player.hand.size == 1) {
-            // In Level 7, AI might try to discard its last card. 
-            // We just skip the discard and advance turn.
-            advanceTurn(state, null)
-            return
-        }
 
         // Check for Rummay! (Offending discard)
         val canPlayOnAnyMeld = state.allTableMelds.any { it.canAddCard(card) }
@@ -312,6 +341,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         // Check if player went out
         val updatedPlayer = stateAfterDiscard.players.find { it.id == player.id }
         if (updatedPlayer != null && updatedPlayer.hand.isEmpty()) {
+            if (state.contractLevel.noDiscard) {
+                _gameState.value = state.copy(statusMessage = "Level 7: You must play all cards to go out. You cannot discard your last card!")
+                return
+            }
             handleRoundWon(stateAfterDiscard, updatedPlayer)
             return
         }
@@ -321,7 +354,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        advanceTurn(stateAfterDiscard, card)
+        advanceTurn(stateAfterDiscard, card, player)
     }
 
     private fun triggerRummayAlert(state: GameState, offender: Player, discardedCard: Card) {
@@ -358,19 +391,39 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val aiCaller = aiCallers.firstOrNull()
 
         if (aiCaller != null) {
-            val penaltyCard = aiCaller.hand.maxByOrNull { it.points } ?: aiCaller.hand.first()
-            val stateAfterTransfer = DeckEngine.transferCardBetweenPlayers(state, aiCaller.id, currentCall.offender.id, penaltyCard)
+            val penaltyCard = aiCaller.hand.random()
+            
+            val offendingCard = currentCall.discardedCard
+            val targetMeld = state.allTableMelds.firstOrNull { it.canAddCard(offendingCard) }
+            
+            var stateAfterRummy = state
+            if (targetMeld != null) {
+                val updatedDiscards = stateAfterRummy.discardPile.filter { it.id != offendingCard.id }
+                stateAfterRummy = stateAfterRummy.copy(discardPile = updatedDiscards)
+                val (stateAfterPlay, _) = DeckEngine.playOnMeld(stateAfterRummy, currentCall.offender.id, offendingCard, targetMeld.id)
+                stateAfterRummy = stateAfterPlay
+            }
+
+            val callerPlayer = stateAfterRummy.players.find { it.id == aiCaller.id }!!
+            val updatedCaller = callerPlayer.withUpdatedHand(callerPlayer.hand.filter { it.id != penaltyCard.id })
+            val updatedDiscards = stateAfterRummy.discardPile + penaltyCard
+            
+            stateAfterRummy = stateAfterRummy.copy(
+                players = stateAfterRummy.players.map { if (it.id == aiCaller.id) updatedCaller else it },
+                discardPile = updatedDiscards
+            )
+
             _activeRummayCall.value = null
 
-            val updatedState = stateAfterTransfer.copy(
-                statusMessage = "${aiCaller.name} called RUMMAY! and gave a card to ${currentCall.offender.name}."
+            val updatedState = stateAfterRummy.copy(
+                statusMessage = "${aiCaller.name} called RUMMAY! and gave ${penaltyCard.displayName} as the new discard."
             )
             _gameState.value = updatedState
             persistState(updatedState)
-            advanceTurn(updatedState, currentCall.discardedCard)
+            advanceTurn(updatedState, penaltyCard, currentCall.offender)
         } else {
             _activeRummayCall.value = null
-            advanceTurn(state, currentCall.discardedCard)
+            advanceTurn(state, currentCall.discardedCard, currentCall.offender)
         }
     }
 
@@ -379,41 +432,70 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val state = _gameState.value ?: return
         val human = state.humanPlayer ?: return
 
-        val stateAfterTransfer = DeckEngine.transferCardBetweenPlayers(state, human.id, currentCall.offender.id, penaltyCard)
+        val offendingCard = currentCall.discardedCard
+        val targetMeld = state.allTableMelds.firstOrNull { it.canAddCard(offendingCard) }
+        
+        var stateAfterRummy = state
+        if (targetMeld != null) {
+            val updatedDiscards = stateAfterRummy.discardPile.filter { it.id != offendingCard.id }
+            stateAfterRummy = stateAfterRummy.copy(discardPile = updatedDiscards)
+            val (stateAfterPlay, _) = DeckEngine.playOnMeld(stateAfterRummy, currentCall.offender.id, offendingCard, targetMeld.id)
+            stateAfterRummy = stateAfterPlay
+        }
+
+        val callerPlayer = stateAfterRummy.players.find { it.id == human.id }!!
+        val updatedCaller = callerPlayer.withUpdatedHand(callerPlayer.hand.filter { it.id != penaltyCard.id })
+        val updatedDiscards = stateAfterRummy.discardPile + penaltyCard
+        
+        stateAfterRummy = stateAfterRummy.copy(
+            players = stateAfterRummy.players.map { if (it.id == human.id) updatedCaller else it },
+            discardPile = updatedDiscards
+        )
+
         _activeRummayCall.value = null
 
-        val updatedState = stateAfterTransfer.copy(
-            statusMessage = "You called RUMMAY! and gave ${penaltyCard.displayName} to ${currentCall.offender.name}."
+        val updatedState = stateAfterRummy.copy(
+            statusMessage = "You called RUMMAY! and gave ${penaltyCard.displayName} as the new discard."
         )
         _gameState.value = updatedState
         persistState(updatedState)
-        advanceTurn(updatedState, currentCall.discardedCard)
+        advanceTurn(updatedState, penaltyCard, currentCall.offender)
     }
 
-    private fun advanceTurn(state: GameState, lastDiscarded: Card?) {
-        val nextPlayer = state.nextPlayer
+    private fun advanceTurn(state: GameState, lastDiscarded: Card?, discarder: Player) {
+        val transition = DeckEngine.calculateTurnAndBuyPriority(state.players, discarder.id, lastDiscarded)
+        val nextPlayer = transition.nextPlayer
+        val otherPlayer = transition.otherPlayer
 
-        val potentialBuyers = state.players.filter { it.id != nextPlayer.id && it.id != state.currentPlayer.id }
-        val eligibleContenderIds = potentialBuyers.map { it.id }
+        if (transition.pendingBuyPriority != null) {
+            val status = if (otherPlayer.isHuman) {
+                "BUY PRIORITY — Your decision"
+            } else {
+                "Checking if ${otherPlayer.name} wants to Buy..."
+            }
 
-        if (lastDiscarded != null && eligibleContenderIds.isNotEmpty()) {
             val stateWithBuy = state.copy(
-                pendingBuyPriority = PendingBuyPriority(
-                    discard = lastDiscarded,
-                    discarderId = state.currentPlayer.id,
-                    discarderName = state.currentPlayer.name,
-                    nextTurnPlayerId = nextPlayer.id,
-                    interestedBuyerIds = eligibleContenderIds
-                )
+                currentTurnPlayerIndex = transition.nextPlayerIndex,
+                currentPhase = TurnPhase.DRAW,
+                pendingBuyPriority = transition.pendingBuyPriority,
+                statusMessage = status
             )
-            val finalAdvancedState = DeckEngine.nextTurn(stateWithBuy)
-            _gameState.value = finalAdvancedState
-            persistState(finalAdvancedState)
+            _gameState.value = stateWithBuy
+            persistState(stateWithBuy)
             processBuyPrioritySequence()
         } else {
-            val finalAdvancedState = DeckEngine.nextTurn(state)
-            _gameState.value = finalAdvancedState
-            persistState(finalAdvancedState)
+            val stateWithoutBuy = state.copy(
+                currentTurnPlayerIndex = transition.nextPlayerIndex,
+                currentPhase = TurnPhase.DRAW,
+                pendingBuyPriority = null,
+                statusMessage = if (nextPlayer.isHuman) {
+                    "Your turn — Draw from Stock."
+                } else {
+                    "${nextPlayer.name}'s turn — Draw from Stock."
+                }
+            )
+            _gameState.value = stateWithoutBuy
+            persistState(stateWithoutBuy)
             checkTurnState()
         }
     }
@@ -466,19 +548,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         val targetMeld = state.allTableMelds.find { it.id == meldId } ?: return
 
-        // Check if playing natural card on a run that contains a joker
-        if (targetMeld.type == MeldType.RUN && !card.isWild && targetMeld.cards.any { it.isWild }) {
-            val range = targetMeld.getRunRange() ?: Pair(2, 14)
-            val headRank = Rank.entries.firstOrNull { it.value == range.first - 1 }?.displayName ?: "Low"
-            val tailRank = Rank.entries.firstOrNull { it.value == range.second + 1 }?.displayName ?: "High"
-
-            _pendingJokerReplacement.value = JokerReplacementState(
-                naturalCard = card,
-                meld = targetMeld,
-                headRankName = headRank,
-                tailRankName = tailRank
-            )
-            return
+        // Check if playing natural card on a run that contains a joker AND replaces it
+        if (targetMeld.type == MeldType.RUN && !card.isWild) {
+            val missingRanks = targetMeld.getRepresentedRanksForJokers()
+            if (missingRanks.contains(card.rank)) {
+                val range = targetMeld.getRunRange() ?: Pair(2, 14)
+                val headRank = Rank.entries.firstOrNull { it.value == range.first - 1 }?.displayName ?: "Low"
+                val tailRank = Rank.entries.firstOrNull { it.value == range.second + 1 }?.displayName ?: "High"
+    
+                _pendingJokerReplacement.value = JokerReplacementState(
+                    naturalCard = card,
+                    meld = targetMeld,
+                    headRankName = headRank,
+                    tailRankName = tailRank
+                )
+                return
+            }
         }
 
         val (stateAfterPlayOn, success) = DeckEngine.playOnMeld(state, human.id, card, meldId)
@@ -578,6 +663,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun checkTurnState() {
         val state = _gameState.value ?: return
         if (_roundWinner.value != null || _isTournamentFinished.value) return
+        if (state.pendingBuyPriority != null) return
 
         if (!state.isHumanTurn) {
             runAiTurn()
@@ -653,7 +739,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
             // 3. CHECK PLAY ON
             if (updatedAi.isDown) {
-                val moves = AiPlayerEngine.findAiPlayOnMoves(updatedAi, currentState.allTableMelds)
+                var moves = AiPlayerEngine.findAiPlayOnMoves(updatedAi, currentState.allTableMelds)
+                if (currentState.contractLevel.noDiscard && updatedAi.hand.size - moves.size == 1) {
+                    moves = moves.dropLast(1)
+                }
+                
                 if (moves.isNotEmpty()) {
                     _gameState.value = currentState.copy(statusMessage = "${updatedAi.name} is playing...")
                     delay(600)
@@ -683,7 +773,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             currentState = _gameState.value ?: return@launch
             
             val discardCard = AiPlayerEngine.chooseDiscard(updatedAi, currentState.contractLevel, currentState.allTableMelds)
-            executeDiscard(currentState, updatedAi, discardCard)
+            if (discardCard != null) {
+                executeDiscard(currentState, updatedAi, discardCard)
+            } else {
+                _gameState.value = currentState.copy(statusMessage = "DEADLOCK: ${updatedAi.name} has only Jokers and cannot discard!")
+            }
         }
     }
 

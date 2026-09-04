@@ -346,7 +346,7 @@ private fun MatchHistoryCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                entry.finalStandings.take(4).forEachIndexed { index, item ->
+                entry.finalStandings.forEachIndexed { index, item ->
                     Text(
                         text = "#${index + 1} ${item.name}: ${item.score}p",
                         color = TextSecondary,
