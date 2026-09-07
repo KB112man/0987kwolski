@@ -672,6 +672,34 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         persistState(stateAfterWin)
     }
 
+    fun swapCardsInHand(cardId1: String, cardId2: String) {
+        val current = _gameState.value ?: return
+        val human = current.humanPlayer ?: return
+        
+        val hand = human.hand.toMutableList()
+        val index1 = hand.indexOfFirst { it.id == cardId1 }
+        val index2 = hand.indexOfFirst { it.id == cardId2 }
+        if (index1 >= 0 && index2 >= 0) {
+            val temp = hand[index1]
+            hand[index1] = hand[index2]
+            hand[index2] = temp
+            
+            if (_autoSortEnabled.value) {
+                _autoSortEnabled.value = false
+            }
+            
+            var updatedHuman = human.copy(hand = hand.toList())
+            updatedHuman = updatedHuman.reorganizeHandIntoRack()
+            
+            val updatedPlayers = current.players.map { if (it.id == human.id) updatedHuman else it }
+            val updatedState = current.copy(players = updatedPlayers)
+            _gameState.value = updatedState
+            persistState(updatedState)
+            
+            _selectedCardIds.value = emptySet()
+        }
+    }
+
     // POCKET CARD MANAGEMENT (Private hand-organization tray)
     fun moveCardsToPocket(cardIds: Set<String>) {
         val current = _gameState.value ?: return

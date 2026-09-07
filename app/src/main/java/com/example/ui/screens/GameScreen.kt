@@ -213,7 +213,9 @@ fun GameScreen(
                 // LEFT OPPONENT SEAT (Rack + Melds to the right)
                 if (leftOpponent != null) {
                     Row(
-                        modifier = Modifier.align(Alignment.CenterStart),
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .fillMaxWidth(0.35f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -450,6 +452,7 @@ fun GameScreen(
                 onSortClicked = { mode -> viewModel.sortHumanHand(mode) },
                 onMoveCardsToPocket = { cardIds -> viewModel.moveCardsToPocket(cardIds) },
                 onMoveCardsToHand = { cardIds -> viewModel.moveCardsToHand(cardIds) },
+                onSwapCards = { cardId1, cardId2 -> viewModel.swapCardsInHand(cardId1, cardId2) },
                 onEmptyPocket = { viewModel.emptyPocket() },
                 onDismissRequest = { viewModel.setExpandedHandVisible(false) }
             )

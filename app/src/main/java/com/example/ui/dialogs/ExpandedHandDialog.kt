@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -35,6 +37,7 @@ fun ExpandedHandDialog(
     onSortClicked: (SortMode) -> Unit,
     onMoveCardsToPocket: (Set<String>) -> Unit,
     onMoveCardsToHand: (Set<String>) -> Unit,
+    onSwapCards: (String, String) -> Unit,
     onEmptyPocket: () -> Unit,
     onDismissRequest: () -> Unit
 ) {
@@ -130,6 +133,21 @@ fun ExpandedHandDialog(
                         }
                     }
 
+                    // Swap Cards
+                    if (selectedActiveCards.size == 2) {
+                        Button(
+                            onClick = {
+                                val list = selectedActiveCards.toList()
+                                onSwapCards(list[0], list[1])
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.height(36.dp).testTag("btn_expanded_swap")
+                        ) {
+                            Text("SWAP (2)", fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
                     // Move to Active Hand
                     if (selectedPocketCards.isNotEmpty()) {
                         Button(
@@ -169,45 +187,12 @@ fun ExpandedHandDialog(
                     color = Color(0xFF190C04),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(72.dp),
-                        contentPadding = PaddingValues(10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(player.hand, key = { it.id }) { card ->
-                            val isPocketed = card.id in player.pocketCardIds
-                            Box {
-                                PlayingCardView(
-                                    card = card,
-                                    isSelected = selectedCardIds.contains(card.id),
-                                    isHighlighted = newlyReceivedCardIds.contains(card.id),
-                                    onClick = { onCardClicked(card.id) },
-                                    cardWidth = 72.dp,
-                                    cardHeight = 104.dp
-                                )
-                                if (isPocketed) {
-                                    Surface(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(2.dp),
-                                        color = Color(0xFF0369A1),
-                                        shape = RoundedCornerShape(3.dp),
-                                        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF38BDF8))
-                                    ) {
-                                        Text(
-                                            text = "POCKET",
-                                            color = Color.White,
-                                            fontSize = 7.5.sp,
-                                            fontWeight = FontWeight.Black,
-                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    ActiveHandGrid(
+                        activeCards = player.activeCards,
+                        selectedCardIds = selectedCardIds,
+                        newlyReceivedCardIds = newlyReceivedCardIds,
+                        onCardClicked = onCardClicked
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -231,6 +216,161 @@ fun ExpandedHandDialog(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ActiveHandGrid(
+    activeCards: List<com.example.model.Card>,
+    selectedCardIds: Set<String>,
+    newlyReceivedCardIds: Set<String>,
+    onCardClicked: (String) -> Unit
+) {
+    val cardWidth = 72.dp
+    val cardHeight = 104.dp
+    val hSpacing = 8.dp
+    val vSpacing = 10.dp
+
+    val rackBg = Color(0xFF0F172A) // Dark Slate
+    val rackBorder = Color(0xFF38BDF8) // Light Blue
+    
+    val overflowBg = Color(0xFF2C1515) // Dark Red/Brown
+    val overflowBorder = Color(0xFFF87171) // Light Red
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(androidx.compose.foundation.rememberScrollState())
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(vSpacing)
+    ) {
+        val totalCards = activeCards.size
+        // Always show at least 4 rows to clearly demonstrate Table Rack and Overflow regions
+        val rowCount = maxOf(4, (totalCards + 7) / 8)
+
+        for (rowIndex in 0 until rowCount) {
+            val startIndex = rowIndex * 8
+            val rowCards = if (startIndex < totalCards) activeCards.subList(startIndex, minOf(startIndex + 8, totalCards)) else emptyList()
+
+            when (rowIndex) {
+                0, 1 -> {
+                    // Full Table Rack Row
+                    RegionContainer(
+                        title = if (rowIndex == 0) "TABLE RACK (Compact Table Slots 1-20)" else null,
+                        color = rackBg,
+                        borderColor = rackBorder
+                    ) {
+                        CardRow(rowCards, 8, cardWidth, cardHeight, hSpacing, selectedCardIds, newlyReceivedCardIds, onCardClicked)
+                    }
+                }
+                2 -> {
+                    // Row 3: Split Table Rack (4) and Overflow (4)
+                    val rackCards = rowCards.take(4)
+                    val overflowCards = rowCards.drop(4)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(0.dp) // The padding trick perfectly spaces them 8dp apart
+                    ) {
+                        RegionContainer(
+                            title = "(Table Rack cont.)",
+                            color = rackBg,
+                            borderColor = rackBorder,
+                            contentPadding = PaddingValues(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
+                        ) {
+                            CardRow(rackCards, 4, cardWidth, cardHeight, hSpacing, selectedCardIds, newlyReceivedCardIds, onCardClicked)
+                        }
+
+                        RegionContainer(
+                            title = "OVERFLOW (Active Hand 21+)",
+                            color = overflowBg,
+                            borderColor = overflowBorder,
+                            contentPadding = PaddingValues(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
+                        ) {
+                            CardRow(overflowCards, 4, cardWidth, cardHeight, hSpacing, selectedCardIds, newlyReceivedCardIds, onCardClicked)
+                        }
+                    }
+                }
+                else -> {
+                    // Full Overflow Row
+                    RegionContainer(
+                        title = if (rowIndex == 3) null else null, // Title is already on Row 3 right half
+                        color = overflowBg,
+                        borderColor = overflowBorder
+                    ) {
+                        CardRow(rowCards, 8, cardWidth, cardHeight, hSpacing, selectedCardIds, newlyReceivedCardIds, onCardClicked)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RegionContainer(
+    title: String?,
+    color: Color,
+    borderColor: Color,
+    contentPadding: PaddingValues = PaddingValues(8.dp),
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        color = color,
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+    ) {
+        Column(modifier = Modifier.padding(contentPadding)) {
+            if (title != null) {
+                Text(
+                    text = title,
+                    color = borderColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(20.dp)) // Maintain vertical alignment with titled rows
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+fun CardRow(
+    cards: List<com.example.model.Card>,
+    maxSlots: Int,
+    cardWidth: androidx.compose.ui.unit.Dp,
+    cardHeight: androidx.compose.ui.unit.Dp,
+    hSpacing: androidx.compose.ui.unit.Dp,
+    selectedCardIds: Set<String>,
+    newlyReceivedCardIds: Set<String>,
+    onCardClicked: (String) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(hSpacing)) {
+        cards.forEach { card ->
+            Box(contentAlignment = Alignment.Center) {
+                PlayingCardView(
+                    card = card,
+                    isSelected = selectedCardIds.contains(card.id),
+                    isHighlighted = newlyReceivedCardIds.contains(card.id),
+                    onClick = { onCardClicked(card.id) },
+                    cardWidth = cardWidth,
+                    cardHeight = cardHeight
+                )
+            }
+        }
+        repeat(maxSlots - cards.size) {
+            Box(
+                modifier = Modifier
+                    .width(cardWidth)
+                    .height(cardHeight)
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+            )
         }
     }
 }

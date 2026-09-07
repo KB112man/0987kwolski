@@ -14,11 +14,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.model.Meld
+import kotlin.math.max
 
 @Composable
 fun SpatialPlayerMeldsView(
@@ -72,6 +75,43 @@ fun SpatialPlayerMeldsView(
 }
 
 @Composable
+fun AdaptiveMeldLayout(
+    cardCount: Int,
+    cardWidth: Dp,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Layout(
+        content = content,
+        modifier = modifier
+    ) { measurables, constraints ->
+        val cardWidthPx = cardWidth.roundToPx()
+        val defaultSpacingPx = cardWidthPx / 2 // 32dp default overlap if 64dp card
+        
+        // Target width is unconstrained, but bounded by max width
+        val idealWidth = if (cardCount == 0) 0 else cardWidthPx + (cardCount - 1) * defaultSpacingPx
+        
+        // If ideal width exceeds available width, shrink the spacing
+        val actualWidth = idealWidth.coerceAtMost(constraints.maxWidth)
+        
+        val spacingPx = if (cardCount > 1) {
+            (actualWidth - cardWidthPx) / (cardCount - 1).toFloat()
+        } else {
+            0f
+        }
+
+        val placeables = measurables.map { it.measure(constraints) }
+
+        layout(width = actualWidth, height = placeables.maxOfOrNull { it.height } ?: 0) {
+            placeables.forEachIndexed { index, placeable ->
+                val xPos = (index * spacingPx).toInt()
+                placeable.placeRelative(xPos, 0)
+            }
+        }
+    }
+}
+
+@Composable
 fun SpatialMeldCard(
     meld: Meld,
     onMeldClicked: () -> Unit,
@@ -102,10 +142,12 @@ fun SpatialMeldCard(
             .clickable(enabled = isInteractive) { onMeldClicked() }
             .padding(horizontal = 4.dp, vertical = 3.dp)
             .testTag("spatial_meld_${meld.id}")
+            .widthIn(max = 240.dp) // Constrain max width so layout adapts
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy((-32).dp)
+        AdaptiveMeldLayout(
+            cardCount = meld.cards.size,
+            cardWidth = 64.dp,
+            modifier = Modifier
         ) {
             meld.cards.forEach { card ->
                 PlayingCardView(
