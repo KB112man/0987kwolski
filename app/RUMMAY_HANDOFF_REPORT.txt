@@ -1,0 +1,174 @@
+================================================================================
+RUMMAY! - CURRENT IMPLEMENTATION HANDOFF REPORT
+Generated: 2026-09-06
+================================================================================
+
+1. CURRENT IMPLEMENTATION STATUS
+================================
+Ultimate Rummay is a fully functional Android card game built with Kotlin and Jetpack Compose. 
+The core game loop supports 3 players (1 Human, 2 AI). 
+Currently Implemented & Working:
+- Complete deck engine (108 cards, 2 decks + 4 Jokers).
+- Turn-based state machine (Draw, Play, Discard).
+- 7 Contract Levels with varying requirements (Books/Runs).
+- Custom Rules Engine:
+  - "Buy" Priority system (out-of-turn discard claiming + penalty draw).
+  - "RUMMAY!" penalty system (punishing playable discards).
+  - Joker shifting (playing a natural card to displace a wild Joker to head/tail of a Run).
+  - Level 7 unique win condition (3 Runs covering the entire hand, zero leftovers, no discard).
+- UI/UX:
+  - Streaming tabletop view with drag-and-drop card physics.
+  - 2-tier wooden card rack for human hand management.
+  - "Pocket" feature for private hand organization (workspace clearing).
+  - "Expanded Hand" grid view.
+  - Dynamic dialogs for Melding, Play-On (Layoffs), and RUMMAY! responses.
+
+2. ALL RECENT CHANGES (CURRENT SESSION)
+=======================================
+- Level 7 / THAT DID IT!: Replaced standard "Go Down" flow for Level 7 with "THAT DID IT!" reveal button.
+- Zero-Leftover Level 7 Validation: Enforced strict validation requiring exactly 3 runs that consume 100% of the player's hand.
+- Pocket Integration: Added the "Pocket" tray allowing players to hide cards from the rack without removing them from their total hand count or breaking conservation of the 108-card deck.
+- Expanded Hand Updates: Added Pocket controls and Sort buttons directly into the Expanded Hand dialog.
+- Card Conservation: Ensured pocketed cards remain in `Player.hand` (preventing deck size leakage) and are dynamically filtered from the UI via `Player.activeCards`.
+- Bug Fix (Rummay Detection): Fixed a live softlock where a Human Offender caught by an AI Caller spawned an un-closeable dialog. Detached `advanceTurn` from the initial penalty trigger.
+- CPU/AI Changes: Updated AI loop to specifically check for Level 7 full-hand win conditions and trigger `revealLevel7Win` instead of the standard `goDown`.
+- Round/Scoring Changes: Updated `DeckEngine.revealLevel7Win` to immediately trigger round scoring without a final discard phase.
+
+3. FILES CHANGED
+================
+- `/app/src/main/java/com/example/ui/GameViewModel.kt`
+  - Added StateFlows for `showPocketDialog`, `showLevel7Reveal`.
+  - Added `moveCardsToPocket()`, `moveCardsToHand()`, `emptyPocket()`.
+  - Added `canHumanWinLevel7()` and `onConfirmLevel7Win()`.
+  - Fixed `triggerRummayAlert` by decoupling turn advancement from the penalty distribution when AI catches Human.
+  - Updated AI loop (`aiLoopJob`) to evaluate Level 7 full-hand wins.
+- `/app/src/main/java/com/example/engine/DeckEngine.kt`
+  - Added `revealLevel7Win()` to handle the instantaneous Level 7 victory transition.
+  - Updated `calculateEndRoundScores()` to set `isTournamentOver = true` if the round was Level 7.
+- `/app/src/main/java/com/example/engine/MeldDetector.kt`
+  - Added `validateLevel7Reveal()` to strictly enforce zero leftovers and natural > wild ratios.
+  - Added `findLevel7WinningRuns()` utilizing Cartesian product searches to evaluate full-hand permutations.
+- `/app/src/main/java/com/example/model/Player.kt`
+  - Added `pocketCardIds: Set<String>`.
+  - Added computed property `activeCards` (hand minus pocket).
+  - Added immutable copy helpers: `withPocketedCards`, `withUnpocketedCards`, `withEmptyPocket`.
+- `/app/src/main/java/com/example/ui/screens/GameScreen.kt`
+  - Added state collectors for Pocket and Level 7 dialogs.
+  - Passed new parameters (Pocket, THAT DID IT) to `PlayerWoodenCardRack`.
+  - Inserted `PocketDialog` and `Level7RevealDialog` into the compose tree.
+- `/app/src/main/java/com/example/ui/components/PlayerWoodenCardRack.kt`
+  - Swapped the standard "GO DOWN" button for "THAT DID IT!" when on Level 7.
+  - Replaced the "SORT" button with "POCKET" on the main rack.
+- `/app/src/main/java/com/example/ui/dialogs/ExpandedHandDialog.kt`
+  - Added a grid row for Pocketed cards.
+  - Added sort controls.
+- `/app/src/main/java/com/example/ui/dialogs/PocketDialog.kt` (NEW)
+  - Created dedicated dialog for viewing and restoring pocketed cards.
+- `/app/src/main/java/com/example/ui/dialogs/Level7RevealDialog.kt` (NEW)
+  - Created validation UI for assembling the 3 winning runs.
+- `/app/src/main/java/com/example/ui/dialogs/RulesDialog.kt`
+  - Updated Rule 5 to accurately reflect authoritative Level 7 rules.
+- `/app/src/test/java/com/example/Level7AndPocketTest.kt` (NEW)
+  - Added 5 unit tests for Level 7 validation, wild ratio rules, and pocket conservation.
+
+4. IMPORTANT CLASSES / FUNCTIONS
+================================
+- Player Hand State: `com.example.model.Player.kt` (`hand`, `activeCards`)
+- Pocket State: `com.example.model.Player.kt` (`pocketCardIds`, `withPocketedCards`)
+- Expanded Hand: `com.example.ui.dialogs.ExpandedHandDialog.kt`
+- Meld Validation: `com.example.engine.MeldDetector.kt` (`validateContract()`, `Meld.isValidRun()`)
+- Going Down: `com.example.engine.DeckEngine.kt` (`goDown()`)
+- Level 7 / THAT DID IT: `com.example.engine.DeckEngine.kt` (`revealLevel7Win()`) & `MeldDetector.kt` (`validateLevel7Reveal()`, `findLevel7WinningRuns()`)
+- Rummay Detection: `com.example.ui.GameViewModel.kt` (`triggerRummayAlert()`) & `MeldDetector.kt` (`isRummyCard()`)
+- Play On: `com.example.engine.DeckEngine.kt` (`playOnMeld()`)
+- Discard Validation: `com.example.engine.DeckEngine.kt` (`discardCard()`)
+- CPU Turns: `com.example.ui.GameViewModel.kt` (`launchAiTurn()`) & `AiPlayerEngine.kt`
+- Round Ending & Scoring: `com.example.engine.DeckEngine.kt` (`calculateEndRoundScores()`)
+- Card Conservation: All state transitions in `DeckEngine.kt` ensure inputs equal outputs (108 total cards).
+
+5. CURRENT GAME FLOW
+====================
+Levels 1–6 Flow:
+1. Draw: Player takes from Stock or accepts a "To You" discard.
+2. Hand Organization: Uses Wood Rack, Pocket, or Expanded Hand to sort cards.
+3. Action Phase (Play/Discard): 
+   - If not down: Player can "Go Down" via MeldBuilder if hand meets contract.
+   - If down: Player can "Play On" to any public table melds.
+4. Discard: Player selects 1 card to discard.
+5. Rummay Check: Engine verifies if discard was playable. If yes, RUMMAY! dialog fires.
+6. Buy Priority: Out-of-turn players are offered the discard + penalty stock draw.
+7. Next Turn: Control passes to next player.
+
+Level 7 Flow:
+1. Draw: Player takes from Stock or "To You" discard.
+2. Hand Organization: (Same as above)
+3. Action Phase (THAT DID IT!): 
+   - Player CANNOT standard "Go Down". 
+   - Player evaluates if entire hand can form exactly 3 Runs with ZERO leftovers.
+   - If true, taps "THAT DID IT!". 
+4. Reveal & Win: Dialog verifies permutations. On confirm, player reveals hand, scores 0, opponents take penalty points, and game ends. (No discard phase).
+
+6. KNOWN BUGS / UNFINISHED ITEMS
+================================
+- UI Drag-and-Drop to Pocket: Cards cannot be dragged directly into the Pocket button on the rack. Must be clicked and moved via the menu.
+- Joker Rummay ambiguity: If a player discards a Joker, it is universally playable. The engine currently flags this as a RUMMAY! penalty. Needs authoritative rule clarification on discarding Jokers.
+- AI Level 7 Visual Flow: The AI will correctly calculate a Level 7 win, but instantly transitions the game state. It does not spawn a "Reveal" dialog for the human to watch them lay it down—it just ends the game via toast/status message.
+- Stock Deck Exhaustion during Buys: If the stock deck runs out while distributing penalty cards for multiple Buys, the engine reshuffles the discard pile, but edge cases around exactly 0 cards remaining could crash the state.
+- Empty Pocket Win: The Level 7 UI filters active cards. If a user tries to win Level 7 while cards are pocketed, the validation might reject it (since total hand count includes the pocket). Users must unpocket cards to win. 
+
+7. TEST COVERAGE
+================
+Present Tests:
+- `ThreePlayerRosterTest`: Verifies game starts with exactly 1 human and 2 AI.
+- `RummayHumanOffenderTest`: Baseline placeholder test for Human Offender resolution logic.
+- `Level7AndPocketTest`: 
+  - Verifies zero-leftover validation for Level 7.
+  - Verifies natural > wild constraints for Level 7 runs.
+  - Verifies pocketing cards does not delete them from total hand.
+  - Verifies `revealLevel7Win` ends the tournament.
+
+Missing Coverage:
+- Full E2E State Machine Integration Tests (mimicking a complete 100-turn round).
+- Screenshot/Roborazzi tests for the new `PocketDialog` and `Level7RevealDialog`.
+
+8. UI STATE
+===========
+- Main Table: Renders public melds. Uses drag targets for "Play On" actions.
+- Compact Rack: 2 rows of 10 slots. Holds `activeCards`. Selected cards lift slightly.
+- Expanded Hand: Full grid overlay. Includes independent Sort controls and a separate row for Pocketed cards.
+- Pocket: Private tray. Cards sent here vanish from the rack. They cannot be discarded or played while pocketed.
+- Play On Dialog: Pops up if a card can be laid off to multiple destinations (or requires Joker shifting).
+- Going Down Dialog (Levels 1-6): Drop zones for required Books/Runs. Validates contract dynamically.
+- Level 7 Dialog: 3 designated Run drop zones. Validates that selected cards equal total hand size exactly.
+
+9. AUTHORITATIVE RULE ASSUMPTIONS
+=================================
+- Level 7 requires exactly 3 Runs.
+- Runs must be at least 4 cards long.
+- Naturals strictly greater than Wilds in any meld.
+- Level 7 requires ZERO leftover cards (no separate final discard).
+- Rummay caller gives 1 card of *their choice* to the offender.
+
+10. POSSIBLE REGRESSIONS
+========================
+- `calculateEndRoundScores` was modified to set `isTournamentOver = true` on Level 7. Ensure this didn't break normal progression for Levels 1-6.
+- The `advanceTurn` decoupling in `GameViewModel.triggerRummayAlert` could cause the game to stall if the `_activeRummayCall` state fails to resolve or if the human dismisses the dialog improperly.
+
+11. BUILD STATUS
+================
+- Current Build Status: SUCCESS
+- Current Test Status: SUCCESS (18/18 passing)
+- Last Command: `gradle :app:testDebugUnitTest`
+- Warnings/Errors: None observed.
+
+12. NEXT DEVELOPER CHECKLIST
+============================
+[ ] MANUAL TEST: Play to Level 7. Put 1 card in the Pocket. Try to tap "THAT DID IT!". Verify the system forces you to unpocket the card before winning (or correctly includes it in the leftover count).
+[ ] MANUAL TEST: As Human, discard a playable card (e.g. a 5 of Hearts when a Run of 2-3-4 Hearts is on the table). Wait for AI to call RUMMAY!. Verify the red dialog appears. Select a penalty card from the AI's hand (automated). Verify the turn successfully advances to the next player after dismissing.
+[ ] MANUAL TEST: As AI, let the AI discard a playable card. As Human, rapidly tap the "CALL RUMMAY" button. Verify the UI lets you pick one of your own cards to hand to the AI, and verify your hand size decreases by 1.
+[ ] MANUAL TEST: During Level 7, ensure the "GO DOWN" button is completely absent from the rack, replaced exclusively by "THAT DID IT!".
+[ ] MANUAL TEST: Drag a card from Row 1 to Row 2 on the rack. Verify it swaps correctly. Then Pocket it. Verify it disappears from the rack completely.
+
+================================================================================
+END OF REPORT
+================================================================================
