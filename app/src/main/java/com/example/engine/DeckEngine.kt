@@ -8,6 +8,7 @@ import com.example.model.Rank
 import com.example.model.Suit
 import com.example.model.Meld
 import com.example.model.MeldType
+import com.example.model.RACK_SLOTS_PER_ROW
 import com.example.model.TurnTransition
 import kotlin.random.Random
 
@@ -419,6 +420,43 @@ object DeckEngine {
         return player.reorganizeHandIntoRack()
     }
 
+    fun revealLevel7Win(
+        state: com.example.model.GameState,
+        playerId: String,
+        threeRuns: List<List<Card>>
+    ): Pair<com.example.model.GameState, Player> {
+        val player = state.players.find { it.id == playerId } ?: return Pair(state, state.players.first())
+        val createdMelds = threeRuns.mapIndexed { idx, runCards ->
+            Meld(
+                id = "meld_${playerId}_l7_run_${idx + 1}_${System.currentTimeMillis()}",
+                type = MeldType.RUN,
+                cards = runCards,
+                ownerId = playerId,
+                ownerName = player.name
+            )
+        }
+        val updatedPlayer = player.copy(
+            hand = emptyList(),
+            pocketCardIds = emptySet(),
+            isDown = true,
+            laidMelds = player.laidMelds + createdMelds,
+            initialDownMelds = createdMelds,
+            rackRows = listOf(
+                List(RACK_SLOTS_PER_ROW) { null },
+                List(RACK_SLOTS_PER_ROW) { null }
+            )
+        )
+        val updatedPlayers = state.players.map { if (it.id == playerId) updatedPlayer else it }
+        val updatedTableMelds = state.allTableMelds + createdMelds
+        val stateAfterMelds = state.copy(
+            players = updatedPlayers,
+            allTableMelds = updatedTableMelds
+        )
+        val stateAfterScoring = calculateEndRoundScores(stateAfterMelds, playerId)
+        val finalWinner = stateAfterScoring.players.find { it.id == playerId } ?: updatedPlayer
+        return Pair(stateAfterScoring, finalWinner)
+    }
+
     /**
      * Exact 3-player turn order and buy priority calculations:
      * discarderIndex = index of player who discarded
@@ -480,9 +518,11 @@ object DeckEngine {
             p.copy(scoresPerLevel = newScoresPerLevel)
         }
         val winnerIndex = updatedPlayers.indexOfFirst { it.id == winnerId }.takeIf { it >= 0 }
+        val isFinalRound = state.currentLevel >= 7
         return state.copy(
             players = updatedPlayers,
             isRoundOver = true,
+            isTournamentOver = isFinalRound,
             roundWinnerIndex = winnerIndex,
             statusMessage = "${state.players.find { it.id == winnerId }?.name ?: "Someone"} went out and won Level ${state.currentLevel}!"
         )

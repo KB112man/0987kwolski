@@ -23,6 +23,7 @@ data class Player(
     val isHuman: Boolean = true,
     val avatarIndex: Int = 0,
     val hand: List<Card> = emptyList(),
+    val pocketCardIds: Set<String> = emptySet(),
     val rackRows: List<List<Card?>> = listOf(
         List(RACK_SLOTS_PER_ROW) { null },
         List(RACK_SLOTS_PER_ROW) { null }
@@ -46,6 +47,12 @@ data class Player(
     val pointsInHand: Int
         get() = hand.sumOf { it.points }
 
+    val activeCards: List<Card>
+        get() = hand.filter { it.id !in pocketCardIds }
+
+    val pocketCards: List<Card>
+        get() = hand.filter { it.id in pocketCardIds }
+
     fun sortedByRank(): Player {
         val sorted = hand.sortedWith(
             compareBy<Card> { if (it.isWild) 100 else it.rank.value }
@@ -63,12 +70,13 @@ data class Player(
     }
 
     fun reorganizeHandIntoRack(): Player {
-        val cardsPerRow = (hand.size + RACK_ROW_COUNT - 1).coerceAtLeast(1) / RACK_ROW_COUNT
+        val workingCards = if (isHuman) activeCards else hand
+        val cardsPerRow = (workingCards.size + RACK_ROW_COUNT - 1).coerceAtLeast(1) / RACK_ROW_COUNT
         val newRows = mutableListOf<List<Card?>>()
         for (i in 0 until RACK_ROW_COUNT) {
             val start = i * cardsPerRow
-            val end = (start + cardsPerRow).coerceAtMost(hand.size)
-            val rowCards = if (start < hand.size) hand.subList(start, end) else emptyList()
+            val end = (start + cardsPerRow).coerceAtMost(workingCards.size)
+            val rowCards = if (start < workingCards.size) workingCards.subList(start, end) else emptyList()
             val fullRow = mutableListOf<Card?>()
             rowCards.forEach { card ->
                 fullRow.add(card)
@@ -82,7 +90,9 @@ data class Player(
     }
 
     fun withUpdatedHand(newHand: List<Card>): Player {
-        val newCards = newHand.toMutableList()
+        val validIds = newHand.map { it.id }.toSet()
+        val cleanedPocketIds = pocketCardIds.filter { it in validIds }.toSet()
+        val workingCards = (if (isHuman) newHand.filter { it.id !in cleanedPocketIds } else newHand).toMutableList()
         val currentRows = if (rackRows.size == RACK_ROW_COUNT) rackRows else listOf(emptyList(), emptyList())
         val updatedRows = mutableListOf<MutableList<Card?>>()
         for (rIdx in 0 until RACK_ROW_COUNT) {
@@ -91,10 +101,10 @@ data class Player(
             for (slotIdx in 0 until RACK_SLOTS_PER_ROW) {
                 val card = sourceRow.getOrNull(slotIdx)
                 if (card != null) {
-                    val match = newCards.find { it.id == card.id }
+                    val match = workingCards.find { it.id == card.id }
                     if (match != null) {
                         preservedRow.add(match)
-                        newCards.remove(match)
+                        workingCards.remove(match)
                     } else {
                         preservedRow.add(null)
                     }
@@ -104,7 +114,7 @@ data class Player(
             }
             updatedRows.add(preservedRow)
         }
-        for (cardToAdd in newCards) {
+        for (cardToAdd in workingCards) {
             var placed = false
             for (row in updatedRows) {
                 val emptyIdx = row.indexOfFirst { it == null }
@@ -120,8 +130,24 @@ data class Player(
         }
         return copy(
             hand = newHand,
+            pocketCardIds = cleanedPocketIds,
             rackRows = updatedRows
         )
+    }
+
+    fun withPocketedCards(cardIds: Set<String>): Player {
+        val validIds = hand.map { it.id }.toSet()
+        val newPocketIds = (pocketCardIds + cardIds).filter { it in validIds }.toSet()
+        return copy(pocketCardIds = newPocketIds).reorganizeHandIntoRack()
+    }
+
+    fun withUnpocketedCards(cardIds: Set<String>): Player {
+        val newPocketIds = pocketCardIds - cardIds
+        return copy(pocketCardIds = newPocketIds).reorganizeHandIntoRack()
+    }
+
+    fun withEmptyPocket(): Player {
+        return copy(pocketCardIds = emptySet()).reorganizeHandIntoRack()
     }
 
     fun moveCardInRack(cardId: String, targetRowIndex: Int, targetSlotIndex: Int? = null): Player {

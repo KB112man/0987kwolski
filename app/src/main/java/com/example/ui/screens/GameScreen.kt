@@ -45,6 +45,8 @@ fun GameScreen(
     val showDeckStats by viewModel.showDeckStats.collectAsState()
     val showRules by viewModel.showRules.collectAsState()
     val showExpandedHandDialog by viewModel.showExpandedHandDialog.collectAsState()
+    val showPocketDialog by viewModel.showPocketDialog.collectAsState()
+    val showLevel7Reveal by viewModel.showLevel7Reveal.collectAsState()
     val showHistoryDialog by viewModel.showHistoryDialog.collectAsState()
     val matchHistory by viewModel.matchHistory.collectAsState()
     val showMeldBuilder by viewModel.showMeldBuilder.collectAsState()
@@ -282,6 +284,10 @@ fun GameScreen(
                         onSortClicked = { mode -> viewModel.sortHumanHand(mode) },
                         onGoDownClicked = { viewModel.setMeldBuilderVisible(true) },
                         canGoDown = !humanPlayer.isDown && isHumanTurn && isPlayOrDiscardPhase,
+                        currentLevel = currentGameState.currentLevel,
+                        onPocketClicked = { viewModel.onPocketButtonClicked() },
+                        onThatDidItClicked = { viewModel.setLevel7RevealVisible(true) },
+                        canWinLevel7 = viewModel.canHumanWinLevel7(),
                         onDiscardClicked = { viewModel.onHumanDiscardSelectedCard() },
                         canDiscard = selectedCardIds.size == 1,
                         onPlayOnClicked = { viewModel.onPlayOnSelectedCard() },
@@ -441,6 +447,10 @@ fun GameScreen(
                 selectedCardIds = selectedCardIds,
                 newlyReceivedCardIds = newlyReceivedCardIds,
                 onCardClicked = { cardId -> viewModel.toggleCardSelection(cardId) },
+                onSortClicked = { mode -> viewModel.sortHumanHand(mode) },
+                onMoveCardsToPocket = { cardIds -> viewModel.moveCardsToPocket(cardIds) },
+                onMoveCardsToHand = { cardIds -> viewModel.moveCardsToHand(cardIds) },
+                onEmptyPocket = { viewModel.emptyPocket() },
                 onDismissRequest = { viewModel.setExpandedHandVisible(false) }
             )
         }
@@ -513,13 +523,33 @@ fun GameScreen(
             )
         }
 
-        // Meld Builder Dialog (Going Down)
+        // Meld Builder Dialog (Going Down - Levels 1-6)
         if (showMeldBuilder && humanPlayer != null) {
             MeldBuilderDialog(
                 player = humanPlayer,
                 contractLevel = currentGameState.contractLevel,
                 onConfirmGoDown = { melds -> viewModel.onConfirmGoDown(melds) },
                 onDismiss = { viewModel.setMeldBuilderVisible(false) }
+            )
+        }
+
+        // Pocket Dialog (Private Hand Organization Tray)
+        if (showPocketDialog && humanPlayer != null) {
+            PocketDialog(
+                player = humanPlayer,
+                onMoveCardsToHand = { cardIds -> viewModel.moveCardsToHand(cardIds) },
+                onMoveCardsToPocket = { cardIds -> viewModel.moveCardsToPocket(cardIds) },
+                onEmptyPocket = { viewModel.emptyPocket() },
+                onDismissRequest = { viewModel.setPocketDialogVisible(false) }
+            )
+        }
+
+        // Level 7 Reveal Dialog ("THAT DID IT!")
+        if (showLevel7Reveal && humanPlayer != null) {
+            Level7RevealDialog(
+                player = humanPlayer,
+                onConfirmWin = { runs -> viewModel.onConfirmLevel7Win(runs) },
+                onDismiss = { viewModel.setLevel7RevealVisible(false) }
             )
         }
 

@@ -56,6 +56,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _showMeldBuilder = MutableStateFlow(false)
     val showMeldBuilder: StateFlow<Boolean> = _showMeldBuilder.asStateFlow()
 
+    private val _showPocketDialog = MutableStateFlow(false)
+    val showPocketDialog: StateFlow<Boolean> = _showPocketDialog.asStateFlow()
+
+    private val _showLevel7Reveal = MutableStateFlow(false)
+    val showLevel7Reveal: StateFlow<Boolean> = _showLevel7Reveal.asStateFlow()
+
     private val _isLayoffDialogOpen = MutableStateFlow(false)
     val isLayoffDialogOpen: StateFlow<Boolean> = _isLayoffDialogOpen.asStateFlow()
 
@@ -643,6 +649,74 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         persistState(finalState)
     }
 
+    // LEVEL 7 "THAT DID IT!" REVEAL & WIN
+    fun canHumanWinLevel7(): Boolean {
+        val current = _gameState.value ?: return false
+        if (current.currentLevel != 7) return false
+        val human = current.humanPlayer ?: return false
+        return MeldDetector.findLevel7WinningRuns(human.hand) != null
+    }
+
+    fun onConfirmLevel7Win(winningRuns: List<List<Card>>) {
+        val current = _gameState.value ?: return
+        val human = current.humanPlayer ?: return
+        _showLevel7Reveal.value = false
+        _selectedCardIds.value = emptySet()
+
+        val (stateAfterWin, winner) = DeckEngine.revealLevel7Win(current, human.id, winningRuns)
+        _gameState.value = stateAfterWin
+        _roundWinner.value = winner
+        if (stateAfterWin.isTournamentOver) {
+            _isTournamentFinished.value = true
+        }
+        persistState(stateAfterWin)
+    }
+
+    // POCKET CARD MANAGEMENT (Private hand-organization tray)
+    fun moveCardsToPocket(cardIds: Set<String>) {
+        val current = _gameState.value ?: return
+        val human = current.humanPlayer ?: return
+        val updatedHuman = human.withPocketedCards(cardIds)
+        val updatedPlayers = current.players.map { if (it.id == human.id) updatedHuman else it }
+        val updatedState = current.copy(players = updatedPlayers)
+        _gameState.value = updatedState
+        persistState(updatedState)
+        _selectedCardIds.value = _selectedCardIds.value - cardIds
+    }
+
+    fun moveCardsToHand(cardIds: Set<String>) {
+        val current = _gameState.value ?: return
+        val human = current.humanPlayer ?: return
+        val updatedHuman = human.withUnpocketedCards(cardIds)
+        val updatedPlayers = current.players.map { if (it.id == human.id) updatedHuman else it }
+        val updatedState = current.copy(players = updatedPlayers)
+        _gameState.value = updatedState
+        persistState(updatedState)
+        _selectedCardIds.value = _selectedCardIds.value - cardIds
+    }
+
+    fun emptyPocket() {
+        val current = _gameState.value ?: return
+        val human = current.humanPlayer ?: return
+        val updatedHuman = human.withEmptyPocket()
+        val updatedPlayers = current.players.map { if (it.id == human.id) updatedHuman else it }
+        val updatedState = current.copy(players = updatedPlayers)
+        _gameState.value = updatedState
+        persistState(updatedState)
+    }
+
+    fun onPocketButtonClicked() {
+        val current = _gameState.value ?: return
+        val human = current.humanPlayer ?: return
+        val selected = _selectedCardIds.value
+        val activeSelected = selected.filter { it !in human.pocketCardIds }.toSet()
+        if (activeSelected.isNotEmpty()) {
+            moveCardsToPocket(activeSelected)
+        } else {
+            _showPocketDialog.value = true
+        }
+    }
+
     // PLAY ON (LAYOFF)
     fun onPlayOnSelectedCard() {
         val state = _gameState.value ?: return
@@ -839,27 +913,43 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             delay(800)
             currentState = _gameState.value ?: return@launch
 
-            // 2. CHECK GO DOWN
+            // 2. CHECK GO DOWN (For Level 7, check full-hand 3-run win condition)
             var updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: return@launch
             if (!updatedAi.isDown) {
-                _gameState.value = currentState.copy(statusMessage = "${aiPlayer.name} is checking melds...")
-                delay(600)
-                currentState = _gameState.value ?: return@launch
-                
-                val candidateMelds = MeldDetector.findValidContract(
-                    updatedAi.hand,
-                    currentState.contractLevel,
-                    updatedAi.id,
-                    updatedAi.name
-                )
-                if (candidateMelds != null) {
-                    val (stateAfterDown, _) = DeckEngine.goDown(currentState, updatedAi.id, candidateMelds)
-                    currentState = stateAfterDown.copy(
-                        statusMessage = "${updatedAi.name} WENT DOWN!"
+                if (currentState.currentLevel == 7) {
+                    val winningRuns = MeldDetector.findLevel7WinningRuns(updatedAi.hand)
+                    if (winningRuns != null) {
+                        _gameState.value = currentState.copy(statusMessage = "${updatedAi.name} reveals 3 RUNS — THAT DID IT!")
+                        delay(1000)
+                        val (stateAfterWin, winner) = DeckEngine.revealLevel7Win(currentState, updatedAi.id, winningRuns)
+                        _gameState.value = stateAfterWin
+                        _roundWinner.value = winner
+                        if (stateAfterWin.isTournamentOver) {
+                            _isTournamentFinished.value = true
+                        }
+                        persistState(stateAfterWin)
+                        return@launch
+                    }
+                } else {
+                    _gameState.value = currentState.copy(statusMessage = "${aiPlayer.name} is checking melds...")
+                    delay(600)
+                    currentState = _gameState.value ?: return@launch
+
+                    val candidateMelds = MeldDetector.findValidContract(
+                        updatedAi.hand,
+                        currentState.contractLevel,
+                        updatedAi.id,
+                        updatedAi.name
                     )
-                    _gameState.value = currentState
-                    updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: return@launch
-                    delay(800)
+                    if (candidateMelds != null) {
+                        val (stateAfterDown, _) = DeckEngine.goDown(currentState, updatedAi.id, candidateMelds)
+                        currentState = stateAfterDown.copy(
+                            statusMessage = "${updatedAi.name} WENT DOWN!"
+                        )
+                        _gameState.value = currentState
+                        updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: return@launch
+                        delay(800)
+                    }
                 }
             }
 
@@ -920,6 +1010,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun setHistoryDialogVisible(visible: Boolean) { _showHistoryDialog.value = visible }
     fun setExpandedHandVisible(visible: Boolean) { _showExpandedHandDialog.value = visible }
     fun setMeldBuilderVisible(visible: Boolean) { _showMeldBuilder.value = visible }
+    fun setPocketDialogVisible(visible: Boolean) { _showPocketDialog.value = visible }
+    fun setLevel7RevealVisible(visible: Boolean) { _showLevel7Reveal.value = visible }
     fun dismissLayoffDialog() { _isLayoffDialogOpen.value = false }
     fun dismissJokerDialog() { _pendingJokerReplacement.value = null }
 }

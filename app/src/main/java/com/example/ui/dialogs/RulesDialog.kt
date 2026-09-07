@@ -102,8 +102,8 @@ fun RulesDialog(onDismiss: () -> Unit) {
                         content = "• You must place your ENTIRE contract at once in order to go Down.\n• Once Down, you can 'Play On' by adding matching single cards to your or any opponent's table melds.\n• In Runs with a Joker, playing the natural card moves the Joker to the head or tail."
                     )
                     RuleSection(
-                        title = "5. LEVEL 7 – 3 RUNS / NO DISCARD",
-                        content = "• Level 7 requires 3 complete Runs (minimum 4 cards each, natural > wild).\n• Special Rule: NO DISCARD. The player goes out by laying down all cards without discarding."
+                        title = "5. LEVEL 7 – 3 RUNS ('THAT DID IT!')",
+                        content = "• Level 7 Win Condition: The round is won when ALL cards in hand can be partitioned into exactly 3 valid Runs (min 4 cards each, naturals > wilds).\n• Zero leftover cards outside those 3 Runs are allowed.\n• There is NO separate 'go down then play off leftovers' phase, and NO final discard.\n• When your entire hand fits into 3 Runs, tap 'THAT DID IT!' to reveal all 3 Runs and win immediately!\n• Pocket Feature: Use the 'POCKET' button on your rack or Expanded Hand to tuck cards privately for workspace organization."
                     )
                     RuleSection(
                         title = "6. RUMMAY! PENALTY",

@@ -47,6 +47,10 @@ fun PlayerWoodenCardRack(
     onSortClicked: (SortMode) -> Unit,
     onGoDownClicked: () -> Unit,
     canGoDown: Boolean,
+    currentLevel: Int = 1,
+    onPocketClicked: () -> Unit = {},
+    onThatDidItClicked: () -> Unit = {},
+    canWinLevel7: Boolean = false,
     onDiscardClicked: () -> Unit,
     canDiscard: Boolean,
     onBuyClicked: (() -> Unit)? = null,
@@ -67,7 +71,7 @@ fun PlayerWoodenCardRack(
     onRegisterSlotBounds: (Int, Int, Rect) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
-    val rackRows = remember(player.hand, player.rackRows) {
+    val rackRows = remember(player.hand, player.pocketCardIds, player.rackRows) {
         val rows = (0 until RACK_ROW_COUNT).map { rIdx ->
             val row = player.rackRows.getOrNull(rIdx) ?: emptyList()
             val mRow = row.toMutableList()
@@ -140,7 +144,7 @@ fun PlayerWoodenCardRack(
                 }
             }
 
-            if (player.hand.size > RACK_ROW_COUNT * RACK_SLOTS_PER_ROW) {
+            if (player.hand.size > RACK_ROW_COUNT * RACK_SLOTS_PER_ROW || player.pocketCards.isNotEmpty()) {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
@@ -152,26 +156,26 @@ fun PlayerWoodenCardRack(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = "HAND: ${player.hand.size}",
                             color = Color.White,
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Black
                         )
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Expand",
                             tint = Color.White,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                         Text(
                             text = "EXPAND",
                             color = Color(0xFFDCFCE7),
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -189,61 +193,43 @@ fun PlayerWoodenCardRack(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. AUTO SORT
+            // 1. POCKET BUTTON
+            val pocketCount = player.pocketCards.size
+            val hasSelected = selectedCardIds.isNotEmpty()
             Surface(
                 modifier = Modifier
                     .weight(1f)
                     .height(46.dp)
-                    .shadow(3.dp, RoundedCornerShape(6.dp))
+                    .shadow(if (hasSelected || pocketCount > 0) 5.dp else 2.dp, RoundedCornerShape(6.dp))
                     .border(
                         1.dp,
-                        if (autoSortEnabled) EmeraldAccentLight else GoldPlaqueBorder.copy(alpha = 0.5f),
+                        if (hasSelected) Color(0xFF38BDF8) else if (pocketCount > 0) Color(0xFF0284C7) else GoldPlaqueBorder.copy(alpha = 0.5f),
                         RoundedCornerShape(6.dp)
                     )
                     .clickable {
-                        onToggleAutoSort?.invoke() ?: onSortClicked(SortMode.RANK)
+                        onPocketClicked()
                     }
-                    .testTag("btn_auto_sort"),
-                color = if (autoSortEnabled) Color(0xFF092E16) else Color(0xFF1C0D05),
+                    .testTag("btn_action_pocket"),
+                color = if (hasSelected) Color(0xFF0C4A6E) else if (pocketCount > 0) Color(0xFF082F49) else Color(0xFF1C0D05),
                 shape = RoundedCornerShape(6.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(15.dp)
-                            .background(
-                                if (autoSortEnabled) EmeraldPrimary else Color.Transparent,
-                                RoundedCornerShape(3.dp)
-                            )
-                            .border(
-                                1.dp,
-                                if (autoSortEnabled) EmeraldAccentLight else GoldPlaqueBorder,
-                                RoundedCornerShape(3.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (autoSortEnabled) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(11.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = "Auto Sort",
-                        color = if (autoSortEnabled) EmeraldAccentLight else GoldPlaqueText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
+                        text = "POCKET ($pocketCount)",
+                        color = if (hasSelected || pocketCount > 0) Color.White else GoldPlaqueText,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.3.sp
+                    )
+                    Text(
+                        text = if (hasSelected) "Tuck ${selectedCardIds.size} cards" else if (pocketCount > 0) "Tap to view" else "Empty / Open",
+                        color = if (hasSelected || pocketCount > 0) Color(0xFFBAE6FD) else GoldPlaqueText.copy(alpha = 0.7f),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Normal
                     )
                 }
             }
@@ -330,7 +316,7 @@ fun PlayerWoodenCardRack(
                 }
             }
 
-            // 4. GOING DOWN (Or BUY if priority is active)
+            // 4. GOING DOWN (Or THAT DID IT! for Level 7, or BUY if priority is active)
             if (canBuy && onBuyClicked != null) {
                 Surface(
                     modifier = Modifier
@@ -358,6 +344,46 @@ fun PlayerWoodenCardRack(
                         Text(
                             text = "Buy discard + 1",
                             color = Color(0xFFDCFCE7),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Normal
+                        )
+                    }
+                }
+            } else if (currentLevel == 7) {
+                // LEVEL 7: THAT DID IT!
+                val isThatDidItEnabled = !player.isDown && isPlayerTurn && isPlayOrDiscardPhase
+                Surface(
+                    modifier = Modifier
+                        .weight(1.05f)
+                        .height(46.dp)
+                        .shadow(if (canWinLevel7) 8.dp else 2.dp, RoundedCornerShape(6.dp))
+                        .border(
+                            1.dp,
+                            if (canWinLevel7) Color(0xFFFBBF24) else Color(0xFFB45309).copy(alpha = 0.7f),
+                            RoundedCornerShape(6.dp)
+                        )
+                        .clickable(enabled = isThatDidItEnabled || !player.isDown) {
+                            onThatDidItClicked()
+                        }
+                        .testTag("btn_action_that_did_it"),
+                    color = if (canWinLevel7) Color(0xFFB45309) else Color(0xFF3B1C0A),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "THAT DID IT!",
+                            color = if (canWinLevel7) Color(0xFFFEF3C7) else Color(0xFFFDE68A),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.3.sp
+                        )
+                        Text(
+                            text = if (canWinLevel7) "3 Runs Ready! Win" else "3 Runs Reveal",
+                            color = if (canWinLevel7) Color(0xFFFFFBEB) else Color(0xFFD97706),
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Normal
                         )
