@@ -47,6 +47,7 @@ fun GameScreen(
     val showExpandedHandDialog by viewModel.showExpandedHandDialog.collectAsState()
     val showPocketDialog by viewModel.showPocketDialog.collectAsState()
     val showLevel7Reveal by viewModel.showLevel7Reveal.collectAsState()
+    val inspectedMeldId by viewModel.inspectedMeldId.collectAsState()
     val showHistoryDialog by viewModel.showHistoryDialog.collectAsState()
     val matchHistory by viewModel.matchHistory.collectAsState()
     val showMeldBuilder by viewModel.showMeldBuilder.collectAsState()
@@ -159,12 +160,14 @@ fun GameScreen(
                         else -> null
                     }
                     SpatialPlayerMeldsView(
-                        melds = topOpponent.laidMelds,
+                        melds = currentGameState.allTableMelds.filter { it.ownerId == topOpponent.id },
                         isVerticalStack = false,
                         onMeldClicked = { meldId ->
                             val selectedCard = humanPlayer?.hand?.find { selectedCardIds.contains(it.id) }
-                            if (selectedCard != null && isHumanDown) {
+                            if (selectedCard != null && isHumanDown && isHumanTurn && isPlayOrDiscardPhase) {
                                 viewModel.onLayoffToMeld(meldId, selectedCard)
+                            } else {
+                                viewModel.setInspectedMeldId(meldId)
                             }
                         },
                         isHumanDown = isHumanDown,
@@ -225,12 +228,14 @@ fun GameScreen(
                             position = OpponentPosition.LEFT
                         )
                         SpatialPlayerMeldsView(
-                            melds = leftOpponent.laidMelds,
+                            melds = currentGameState.allTableMelds.filter { it.ownerId == leftOpponent.id },
                             isVerticalStack = true,
                             onMeldClicked = { meldId ->
                                 val selectedCard = humanPlayer?.hand?.find { selectedCardIds.contains(it.id) }
-                                if (selectedCard != null && isHumanDown) {
+                                if (selectedCard != null && isHumanDown && isHumanTurn && isPlayOrDiscardPhase) {
                                     viewModel.onLayoffToMeld(meldId, selectedCard)
+                                } else {
+                                    viewModel.setInspectedMeldId(meldId)
                                 }
                             },
                             isHumanDown = isHumanDown,
@@ -257,14 +262,17 @@ fun GameScreen(
                         is DragDropTarget.Meld -> h.meldId
                         else -> null
                     }
-                    if (humanPlayer.laidMelds.isNotEmpty()) {
+                    val humanMelds = currentGameState.allTableMelds.filter { it.ownerId == humanPlayer.id }
+                    if (humanMelds.isNotEmpty()) {
                         SpatialPlayerMeldsView(
-                            melds = humanPlayer.laidMelds,
+                            melds = humanMelds,
                             isVerticalStack = false,
                             onMeldClicked = { meldId ->
                                 val selectedCard = humanPlayer.hand.find { selectedCardIds.contains(it.id) }
-                                if (selectedCard != null && isHumanDown) {
+                                if (selectedCard != null && isHumanDown && isHumanTurn && isPlayOrDiscardPhase) {
                                     viewModel.onLayoffToMeld(meldId, selectedCard)
+                                } else {
+                                    viewModel.setInspectedMeldId(meldId)
                                 }
                             },
                             isHumanDown = isHumanDown,
@@ -274,6 +282,11 @@ fun GameScreen(
                             },
                             modifier = Modifier.padding(bottom = 2.dp)
                         )
+                    }
+
+                    val contractLevel = com.example.model.ContractLevel.fromLevelNumber(currentGameState.currentLevel)
+                    val hasValidContract = remember(humanPlayer.hand, contractLevel) {
+                        com.example.engine.MeldDetector.findValidContract(humanPlayer.hand, contractLevel, humanPlayer.id, humanPlayer.name) != null
                     }
 
                     // 2-TIER STEPPED WOODEN CARD RACK (10 slots each tier + 4 Action Buttons underneath)
@@ -286,6 +299,7 @@ fun GameScreen(
                         onSortClicked = { mode -> viewModel.sortHumanHand(mode) },
                         onGoDownClicked = { viewModel.setMeldBuilderVisible(true) },
                         canGoDown = !humanPlayer.isDown && isHumanTurn && isPlayOrDiscardPhase,
+                        hasValidContract = hasValidContract,
                         currentLevel = currentGameState.currentLevel,
                         onPocketClicked = { viewModel.onPocketButtonClicked() },
                         onThatDidItClicked = { viewModel.setLevel7RevealVisible(true) },
@@ -605,6 +619,19 @@ fun GameScreen(
                 onPlayAgain = { viewModel.startNewTournament() },
                 onBackToMainMenu = { onNavigateToMainMenu() }
             )
+        }
+
+        // Meld Inspection Dialog
+        inspectedMeldId?.let { meldId ->
+            val meld = currentGameState.allTableMelds.find { it.id == meldId }
+            if (meld != null) {
+                com.example.ui.dialogs.MeldInspectionDialog(
+                    meld = meld,
+                    onDismiss = { viewModel.setInspectedMeldId(null) }
+                )
+            } else {
+                viewModel.setInspectedMeldId(null)
+            }
         }
     }
 }

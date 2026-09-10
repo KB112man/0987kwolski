@@ -62,6 +62,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _showLevel7Reveal = MutableStateFlow(false)
     val showLevel7Reveal: StateFlow<Boolean> = _showLevel7Reveal.asStateFlow()
 
+    private val _inspectedMeldId = MutableStateFlow<String?>(null)
+    val inspectedMeldId: StateFlow<String?> = _inspectedMeldId.asStateFlow()
+
     private val _isLayoffDialogOpen = MutableStateFlow(false)
     val isLayoffDialogOpen: StateFlow<Boolean> = _isLayoffDialogOpen.asStateFlow()
 
@@ -1040,6 +1043,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun setMeldBuilderVisible(visible: Boolean) { _showMeldBuilder.value = visible }
     fun setPocketDialogVisible(visible: Boolean) { _showPocketDialog.value = visible }
     fun setLevel7RevealVisible(visible: Boolean) { _showLevel7Reveal.value = visible }
+    
+    fun setInspectedMeldId(meldId: String?) { _inspectedMeldId.value = meldId }
+    
     fun dismissLayoffDialog() { _isLayoffDialogOpen.value = false }
     fun dismissJokerDialog() { _pendingJokerReplacement.value = null }
 }

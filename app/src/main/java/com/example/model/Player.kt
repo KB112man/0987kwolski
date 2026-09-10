@@ -193,7 +193,7 @@ data class Player(
 
         return copy(
             rackRows = rows,
-            hand = rows.flatten().filterNotNull()
+            hand = rows.flatten().filterNotNull() + pocketCards
         )
     }
 

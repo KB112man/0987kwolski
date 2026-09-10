@@ -46,7 +46,8 @@ fun PlayerWoodenCardRack(
     onExpandHandClicked: () -> Unit = {},
     onSortClicked: (SortMode) -> Unit,
     onGoDownClicked: () -> Unit,
-    canGoDown: Boolean,
+    canGoDown: Boolean, // Indicates if the button is clickable (correct turn phase)
+    hasValidContract: Boolean = false, // Indicates if they actually have the cards
     currentLevel: Int = 1,
     onPocketClicked: () -> Unit = {},
     onThatDidItClicked: () -> Unit = {},
@@ -395,17 +396,17 @@ fun PlayerWoodenCardRack(
                     modifier = Modifier
                         .weight(1.05f)
                         .height(46.dp)
-                        .shadow(if (canGoDown) 6.dp else 2.dp, RoundedCornerShape(6.dp))
+                        .shadow(if (hasValidContract) 6.dp else 2.dp, RoundedCornerShape(6.dp))
                         .border(
                             1.dp,
-                            if (canGoDown) Color(0xFFEF4444) else Color(0xFF451812),
+                            if (hasValidContract) Color(0xFFEF4444) else Color(0xFF451812),
                             RoundedCornerShape(6.dp)
                         )
-                        .clickable(enabled = isGoDownEnabled || !player.isDown) {
+                        .clickable(enabled = canGoDown) {
                             onGoDownClicked()
                         }
                         .testTag("btn_action_going_down"),
-                    color = if (canGoDown) Color(0xFF7F1D1D) else Color(0xFF280E0B),
+                    color = if (hasValidContract) Color(0xFF7F1D1D) else Color(0xFF280E0B),
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Column(
@@ -415,14 +416,14 @@ fun PlayerWoodenCardRack(
                     ) {
                         Text(
                             text = "GOING DOWN",
-                            color = if (canGoDown) Color.White else Color(0xFFD18A8A),
+                            color = if (hasValidContract) Color.White else Color(0xFFD18A8A),
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 0.3.sp
                         )
                         Text(
-                            text = if (canGoDown) "Ready to Meld!" else "Go down / Meld",
-                            color = if (canGoDown) Color(0xFFFEE2E2) else Color(0xFF8A5555),
+                            text = if (hasValidContract) "Ready to Meld!" else "Go down / Meld",
+                            color = if (hasValidContract) Color(0xFFFEE2E2) else Color(0xFF8A5555),
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Normal
                         )

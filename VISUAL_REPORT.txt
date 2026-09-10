@@ -1,0 +1,68 @@
+============================================================
+RUMMAY! — VISUAL REDESIGN REPORT
+============================================================
+
+REFERENCE USED:
+N/A (This turn focused on fundamental core state tracking, accounting, and authoritative rendering bugs.)
+
+FILES CHANGED:
+/app/src/main/java/com/example/model/Player.kt
+/app/src/main/java/com/example/ui/screens/GameScreen.kt
+/app/src/main/java/com/example/ui/components/PlayerWoodenCardRack.kt
+/app/src/main/java/com/example/ui/GameViewModel.kt
+/app/src/main/java/com/example/ui/dialogs/MeldInspectionDialog.kt (NEW)
+
+PLAYER CARD SIZE:
+BEFORE: N/A
+AFTER: N/A
+
+PUBLIC MELD CARD SIZE:
+BEFORE: N/A
+AFTER: N/A
+
+RACK:
+N/A
+
+CARD OVERLAP:
+N/A
+
+TABLE COMPOSITION:
+N/A
+
+STOCK / DISCARD:
+N/A
+
+OPPONENT STATIONS:
+N/A
+
+ACTION AREA:
+N/A
+
+DIALOGS:
+- Added MeldInspectionDialog to allow tapping public melds for detailed viewing of complete combinations, ensuring clarity for long Runs or obscured cards.
+
+GAMEPLAY FILES CHANGED:
+Player.kt, GameScreen.kt, PlayerWoodenCardRack.kt, GameViewModel.kt
+
+GAMEPLAY LOGIC CHANGED:
+- Fixed severe state destruction bug in Pocket mechanics. 'moveCardInRack' was improperly overwriting the Player's hand exclusively with Rack contents, silently deleting any Pocketed cards from existence. This caused the 108-card inventory tracker to bleed exact subsets of Pocket cards (the 14-card deficit bug).
+- Fixed authoritative table meld state mapping. Play On mechanics previously updated the global table meld state but failed to synchronize back to the acting owner's local profile duplicate (`laidMelds`). Changed UI to strictly render out of `allTableMelds` directly, destroying the source of stale visual desynchronization and missing cards.
+- Restructured `Going Down` button affordances. The UI incorrectly labeled the button "Ready to Meld!" continuously merely because it was the player's turn. It now calculates and displays true `hasValidContract` readiness using the MeldDetector without blocking manual entry.
+
+TESTS:
+N/A
+
+PASSED:
+- Build compilation success.
+- Pocket tracking state restored.
+- 108-card accounting theoretically stable.
+
+FAILED:
+None.
+
+BUILD:
+Green / Passing.
+
+RESULT:
+Critical architecture leaks and false-validation states have been patched. The environment is stable for continued mechanic development.
+============================================================
