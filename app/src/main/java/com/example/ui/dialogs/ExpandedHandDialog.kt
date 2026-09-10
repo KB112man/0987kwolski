@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -177,6 +178,35 @@ fun ExpandedHandDialog(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // Pocket Tray Section (if player has pocketed cards)
+                if (player.pocketCards.isNotEmpty()) {
+                    RegionContainer(
+                        title = "POCKET TRAY (${player.pocketCards.size} cards stored)",
+                        color = Color(0xFF03223F),
+                        borderColor = Color(0xFF38BDF8),
+                        contentPadding = PaddingValues(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            player.pocketCards.forEach { card ->
+                                PlayingCardView(
+                                    card = card,
+                                    isSelected = selectedCardIds.contains(card.id),
+                                    isHighlighted = newlyReceivedCardIds.contains(card.id),
+                                    onClick = { onCardClicked(card.id) },
+                                    cardWidth = 72.dp,
+                                    cardHeight = 104.dp
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
 
                 // Content
                 Surface(

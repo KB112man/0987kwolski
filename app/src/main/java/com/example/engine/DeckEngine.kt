@@ -132,14 +132,99 @@ object DeckEngine {
 
     fun gatherAndVerifyLevelCards(gameState: com.example.model.GameState): List<Card> {
         val gathered = gameState.allTrackedCards
-        check(gathered.size == 108) {
-            "Level end card gathering error: Expected 108 cards, but found ${gathered.size} cards."
-        }
-        val uniqueIds = gathered.map { it.id }.toSet()
-        check(uniqueIds.size == 108) {
-            "Level end card integrity error: Expected 108 unique card IDs, but found ${uniqueIds.size} unique IDs."
+        val report = generateIntegrityReport(gameState, "gatherAndVerifyLevelCards")
+        check(report.isValid) {
+            report.formatErrorMessage()
         }
         return gathered
+    }
+
+    private val canonicalDeck108Ids: Set<String> by lazy {
+        createFullDeck().map { it.id }.toSet()
+    }
+
+    fun getCanonicalDeckIds(): Set<String> = canonicalDeck108Ids
+
+    fun generateIntegrityReport(
+        gameState: com.example.model.GameState,
+        actionName: String = ""
+    ): com.example.model.CardIntegrityReport {
+        val expectedMasterIds = canonicalDeck108Ids
+        val locationsByCardId = mutableMapOf<String, MutableList<com.example.model.CardLocation>>()
+        var totalReferences = 0
+
+        // 1. Stock
+        gameState.drawDeck.forEach { card ->
+            totalReferences++
+            locationsByCardId.getOrPut(card.id) { mutableListOf() }.add(
+                com.example.model.CardLocation(
+                    cardId = card.id,
+                    zone = com.example.model.CardZone.STOCK
+                )
+            )
+        }
+
+        // 2. Discard
+        gameState.discardPile.forEach { card ->
+            totalReferences++
+            locationsByCardId.getOrPut(card.id) { mutableListOf() }.add(
+                com.example.model.CardLocation(
+                    cardId = card.id,
+                    zone = com.example.model.CardZone.DISCARD
+                )
+            )
+        }
+
+        // 3. Player Hands (Active + Pocket)
+        gameState.players.forEach { player ->
+            player.hand.forEach { card ->
+                totalReferences++
+                locationsByCardId.getOrPut(card.id) { mutableListOf() }.add(
+                    com.example.model.CardLocation(
+                        cardId = card.id,
+                        zone = com.example.model.CardZone.PLAYER_HAND,
+                        playerId = player.id,
+                        playerName = player.name,
+                        pocketed = card.id in player.pocketCardIds
+                    )
+                )
+            }
+        }
+
+        // 4. Table Melds
+        gameState.allTableMelds.forEach { meld ->
+            meld.cards.forEach { card ->
+                totalReferences++
+                locationsByCardId.getOrPut(card.id) { mutableListOf() }.add(
+                    com.example.model.CardLocation(
+                        cardId = card.id,
+                        zone = com.example.model.CardZone.TABLE_MELD,
+                        playerId = meld.ownerId,
+                        playerName = meld.ownerName,
+                        meldId = meld.id
+                    )
+                )
+            }
+        }
+
+        val observedIds = locationsByCardId.keys
+        val missingIds = expectedMasterIds - observedIds
+        val duplicatedIds = locationsByCardId.filter { it.value.size > 1 }.keys
+
+        val isValid = totalReferences == 108 &&
+                observedIds.size == 108 &&
+                missingIds.isEmpty() &&
+                duplicatedIds.isEmpty()
+
+        return com.example.model.CardIntegrityReport(
+            totalReferences = totalReferences,
+            uniqueIds = observedIds.size,
+            missingIds = missingIds,
+            duplicatedIds = duplicatedIds,
+            locationsByCardId = locationsByCardId,
+            isValid = isValid,
+            actionName = actionName
+        )
     }
 
     fun startNewGame(humanName: String = "You"): com.example.model.GameState {
@@ -401,7 +486,8 @@ object DeckEngine {
 
     fun moveCardInRack(player: Player, fromRow: Int, fromSlot: Int, toRow: Int, toSlot: Int): Player {
         val currentSlotCard = player.rackRows.getOrNull(fromRow)?.getOrNull(fromSlot) ?: return player
-        return player.moveCardInRack(currentSlotCard.id, toRow, toSlot)
+        val targetIndex = (toRow * com.example.model.RACK_SLOTS_PER_ROW + toSlot)
+        return player.insertAndShiftCardInHand(currentSlotCard.id, targetIndex)
     }
 
     fun sortHand(hand: List<Card>, mode: com.example.model.SortMode): List<Card> {

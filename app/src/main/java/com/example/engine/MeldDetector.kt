@@ -30,6 +30,16 @@ data class Level7ValidationResult(
     val errorMessage: String? = null
 )
 
+data class Level7Workspace(
+    val run1Ids: List<String> = emptyList(),
+    val run2Ids: List<String> = emptyList(),
+    val run3Ids: List<String> = emptyList(),
+    val leftoverIds: List<String> = emptyList(),
+    val validRunCount: Int = 0,
+    val assignedCount: Int = 0,
+    val summaryMessage: String = ""
+)
+
 object MeldDetector {
     fun getContractSlotDefinitions(level: ContractLevel): List<MeldSlotDefinition> {
         val list = mutableListOf<MeldSlotDefinition>()
@@ -417,6 +427,21 @@ object MeldDetector {
         return tableMelds.any { it.canAddCard(card) }
     }
 
+    fun areRunsContiguousSameSuit(runA: List<Card>, runB: List<Card>): Boolean {
+        if (runA.isEmpty() || runB.isEmpty()) return false
+        val naturalsA = runA.filter { !it.isWild }
+        val naturalsB = runB.filter { !it.isWild }
+        if (naturalsA.isEmpty() || naturalsB.isEmpty()) return false
+        val suitA = naturalsA.first().suit
+        val suitB = naturalsB.first().suit
+        if (suitA == Suit.NONE || suitA != suitB) return false
+
+        val rangeA = Meld.determineRunRange(runA, minSize = 4) ?: return false
+        val rangeB = Meld.determineRunRange(runB, minSize = 4) ?: return false
+
+        return (rangeA.second + 1 == rangeB.first) || (rangeB.second + 1 == rangeA.first)
+    }
+
     fun validateLevel7Reveal(
         run1Cards: List<Card>,
         run2Cards: List<Card>,
@@ -429,11 +454,22 @@ object MeldDetector {
         val r3 = evaluateSingleSlot(run3Cards, MeldType.RUN, minSize = 4)
         val leftovers = unassignedCards.size
 
+        val contiguousError = when {
+            r1.isValid && r2.isValid && areRunsContiguousSameSuit(run1Cards, run2Cards) ->
+                "Runs 1 and 2 are contiguous in the same suit and must be combined into one Run."
+            r1.isValid && r3.isValid && areRunsContiguousSameSuit(run1Cards, run3Cards) ->
+                "Runs 1 and 3 are contiguous in the same suit and must be combined into one Run."
+            r2.isValid && r3.isValid && areRunsContiguousSameSuit(run2Cards, run3Cards) ->
+                "Runs 2 and 3 are contiguous in the same suit and must be combined into one Run."
+            else -> null
+        }
+
         val error = when {
             leftovers > 0 -> "All cards in your hand must fit into your 3 Runs to win Level 7. Leftover cards remaining: $leftovers"
             !r1.isValid -> "Run 1: ${r1.detailMessage}"
             !r2.isValid -> "Run 2: ${r2.detailMessage}"
             !r3.isValid -> "Run 3: ${r3.detailMessage}"
+            contiguousError != null -> contiguousError
             (run1Cards.size + run2Cards.size + run3Cards.size) != totalHandCount -> "Total cards in runs (${run1Cards.size + run2Cards.size + run3Cards.size}) does not match total hand count ($totalHandCount)."
             else -> null
         }
@@ -448,30 +484,137 @@ object MeldDetector {
         )
     }
 
-    fun findLevel7WinningRuns(hand: List<Card>): List<List<Card>>? {
-        if (hand.size < 12) return null
-        val allRuns = findAllValidRunsForHand(hand, minSize = 4)
-        if (allRuns.size < 3) return null
+    /**
+     * Backtracking / recursive partition solver for Level 7 Auto-Arrange.
+     * Evaluates legal Run candidates and finds the optimal combination of up to 3 non-overlapping Runs:
+     * 1) Maximizes the number of legal Runs (up to 3)
+     * 2) Maximizes the number of assigned cards (minimizes leftovers)
+     * 3) Enforces no contiguous same-suit runs (e.g. 2-5 H and 6-9 H must be merged or separated)
+     * 4) Evaluates alternative Joker allocations so Jokers aren't greedily consumed by the first run.
+     * 5) Returns transient workspace IDs without mutating any underlying Player state.
+     */
+    fun solveLevel7Arrangement(hand: List<Card>): Level7Workspace {
+        val allHandIds = hand.map { it.id }.toSet()
+        if (hand.size < 4) {
+            return Level7Workspace(
+                leftoverIds = hand.map { it.id },
+                validRunCount = 0,
+                assignedCount = 0,
+                summaryMessage = "Hand has fewer than 4 cards to form a run."
+            )
+        }
 
-        for (r1 in allRuns) {
-            val r1Ids = r1.map { it.id }.toSet()
-            val remainingAfterR1 = hand.filter { it.id !in r1Ids }
-            if (remainingAfterR1.size < 8) continue
+        val allCandidates = findAllValidRunsForHand(hand, minSize = 4)
+        if (allCandidates.isEmpty()) {
+            return Level7Workspace(
+                leftoverIds = hand.map { it.id },
+                validRunCount = 0,
+                assignedCount = 0,
+                summaryMessage = "No legal runs of 4+ cards found in hand."
+            )
+        }
 
-            val runsForR2 = findAllValidRunsForHand(remainingAfterR1, minSize = 4)
-            for (r2 in runsForR2) {
-                val r2Ids = r2.map { it.id }.toSet()
-                val remainingAfterR2 = remainingAfterR1.filter { it.id !in r2Ids }
-                if (remainingAfterR2.size < 4) continue
+        var bestRuns = emptyList<List<Card>>()
+        var bestRunCount = 0
+        var bestCardCount = 0
 
-                val r3Configs = Meld.determineAllValidRunConfigurations(remainingAfterR2, minSize = 4)
-                if (r3Configs.isNotEmpty()) {
-                    val r1Config = Meld.determineAllValidRunConfigurations(r1, 4).firstOrNull() ?: r1
-                    val r2Config = Meld.determineAllValidRunConfigurations(r2, 4).firstOrNull() ?: r2
-                    val r3Config = r3Configs.first()
-                    return listOf(r1Config, r2Config, r3Config)
+        fun backtrack(
+            startIndex: Int,
+            currentRuns: List<List<Card>>,
+            usedCardIds: Set<String>
+        ) {
+            val currentRunCount = currentRuns.size
+            val currentCardCount = usedCardIds.size
+
+            if (currentRunCount > bestRunCount ||
+                (currentRunCount == bestRunCount && currentCardCount > bestCardCount)
+            ) {
+                bestRuns = currentRuns
+                bestRunCount = currentRunCount
+                bestCardCount = currentCardCount
+
+                // If we partitioned the entire hand into exactly 3 runs, that is optimal
+                if (bestRunCount == 3 && bestCardCount == hand.size) {
+                    return
                 }
             }
+
+            if (currentRuns.size == 3 || startIndex >= allCandidates.size) {
+                return
+            }
+
+            for (i in startIndex until allCandidates.size) {
+                val candidate = allCandidates[i]
+                val candidateIds = candidate.map { it.id }
+
+                // Check card overlap
+                if (candidateIds.any { it in usedCardIds }) continue
+
+                // Check contiguous same-suit restriction against all currently chosen runs
+                var violatesContiguous = false
+                for (chosen in currentRuns) {
+                    if (areRunsContiguousSameSuit(chosen, candidate)) {
+                        violatesContiguous = true
+                        break
+                    }
+                }
+                if (violatesContiguous) continue
+
+                backtrack(
+                    startIndex = i + 1,
+                    currentRuns = currentRuns + listOf(candidate),
+                    usedCardIds = usedCardIds + candidateIds
+                )
+
+                if (bestRunCount == 3 && bestCardCount == hand.size) {
+                    return
+                }
+            }
+        }
+
+        backtrack(startIndex = 0, currentRuns = emptyList(), usedCardIds = emptySet())
+
+        val orderedRuns = bestRuns.map { run ->
+            Meld.determineAllValidRunConfigurations(run, 4).firstOrNull() ?: run
+        }
+
+        val run1Ids = if (orderedRuns.isNotEmpty()) orderedRuns[0].map { it.id } else emptyList()
+        val run2Ids = if (orderedRuns.size > 1) orderedRuns[1].map { it.id } else emptyList()
+        val run3Ids = if (orderedRuns.size > 2) orderedRuns[2].map { it.id } else emptyList()
+
+        val assignedIds = (run1Ids + run2Ids + run3Ids).toSet()
+        val leftoverIds = hand.filter { it.id !in assignedIds }.map { it.id }
+
+        val summary = when {
+            orderedRuns.size == 3 && leftoverIds.isEmpty() ->
+                "Complete Level 7 Win! All ${hand.size} cards partitioned into 3 legal Runs."
+            orderedRuns.size == 3 ->
+                "Found 3 legal Runs (${assignedIds.size} cards assigned). ${leftoverIds.size} leftover cards remaining."
+            orderedRuns.isNotEmpty() ->
+                "Found ${orderedRuns.size} legal Run(s) (${assignedIds.size} cards assigned). ${leftoverIds.size} leftover cards remaining."
+            else ->
+                "Unable to form any legal Runs."
+        }
+
+        return Level7Workspace(
+            run1Ids = run1Ids,
+            run2Ids = run2Ids,
+            run3Ids = run3Ids,
+            leftoverIds = leftoverIds,
+            validRunCount = orderedRuns.size,
+            assignedCount = assignedIds.size,
+            summaryMessage = summary
+        )
+    }
+
+    fun findLevel7WinningRuns(hand: List<Card>): List<List<Card>>? {
+        val workspace = solveLevel7Arrangement(hand)
+        if (workspace.validRunCount == 3 && workspace.leftoverIds.isEmpty()) {
+            val cardMap = hand.associateBy { it.id }
+            val r1 = workspace.run1Ids.mapNotNull { cardMap[it] }
+            val r2 = workspace.run2Ids.mapNotNull { cardMap[it] }
+            val r3 = workspace.run3Ids.mapNotNull { cardMap[it] }
+            return listOf(r1, r2, r3)
         }
         return null
     }

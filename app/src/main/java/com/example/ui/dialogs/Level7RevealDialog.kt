@@ -41,6 +41,7 @@ fun Level7RevealDialog(
 
     var selectedRunSlot by remember { mutableIntStateOf(0) }
     var validationErrorMessage by remember { mutableStateOf<String?>(null) }
+    var arrangementMessage by remember { mutableStateOf<String?>(null) }
 
     val validation = remember(run1Cards.toList(), run2Cards.toList(), run3Cards.toList(), unassignedCards.toList()) {
         MeldDetector.validateLevel7Reveal(
@@ -59,22 +60,27 @@ fun Level7RevealDialog(
         unassignedCards.clear()
         unassignedCards.addAll(totalHandCards)
         validationErrorMessage = null
+        arrangementMessage = null
     }
 
     fun autoArrange3Runs() {
-        val winningRuns = MeldDetector.findLevel7WinningRuns(totalHandCards)
-        if (winningRuns != null && winningRuns.size == 3) {
-            run1Cards.clear()
-            run1Cards.addAll(winningRuns[0])
-            run2Cards.clear()
-            run2Cards.addAll(winningRuns[1])
-            run3Cards.clear()
-            run3Cards.addAll(winningRuns[2])
-            unassignedCards.clear()
-            validationErrorMessage = null
-        } else {
-            validationErrorMessage = "Your hand cannot yet be partitioned into 3 complete legal Runs with 0 leftovers."
-        }
+        val workspace = MeldDetector.solveLevel7Arrangement(totalHandCards)
+        val cardMap = totalHandCards.associateBy { it.id }
+
+        run1Cards.clear()
+        run1Cards.addAll(workspace.run1Ids.mapNotNull { cardMap[it] })
+
+        run2Cards.clear()
+        run2Cards.addAll(workspace.run2Ids.mapNotNull { cardMap[it] })
+
+        run3Cards.clear()
+        run3Cards.addAll(workspace.run3Ids.mapNotNull { cardMap[it] })
+
+        unassignedCards.clear()
+        unassignedCards.addAll(workspace.leftoverIds.mapNotNull { cardMap[it] })
+
+        validationErrorMessage = null
+        arrangementMessage = workspace.summaryMessage
     }
 
     fun sortUnassignedByRank() {
@@ -247,6 +253,25 @@ fun Level7RevealDialog(
                         Text(
                             text = validationErrorMessage ?: "",
                             color = Color(0xFFFEE2E2),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                } else if (arrangementMessage != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        color = if (validation.isValid) Color(0xFF064E3B) else Color(0xFF3B1C0A),
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (validation.isValid) Color(0xFF10B981) else Color(0xFFD97706)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = arrangementMessage ?: "",
+                            color = if (validation.isValid) Color(0xFFD1FAE5) else Color(0xFFFEF3C7),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)

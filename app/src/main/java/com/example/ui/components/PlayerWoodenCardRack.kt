@@ -70,6 +70,7 @@ fun PlayerWoodenCardRack(
     onCardDragCancel: () -> Unit = {},
     onRegisterRowBounds: (Int, Rect) -> Unit = { _, _ -> },
     onRegisterSlotBounds: (Int, Int, Rect) -> Unit = { _, _, _ -> },
+    onRegisterPocketBounds: (Rect) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val rackRows = remember(player.hand, player.pocketCardIds, player.rackRows) {
@@ -197,21 +198,25 @@ fun PlayerWoodenCardRack(
             // 1. POCKET BUTTON
             val pocketCount = player.pocketCards.size
             val hasSelected = selectedCardIds.isNotEmpty()
+            val isPocketHovered = hoveredTarget is DragDropTarget.Pocket
             Surface(
                 modifier = Modifier
                     .weight(1f)
                     .height(46.dp)
-                    .shadow(if (hasSelected || pocketCount > 0) 5.dp else 2.dp, RoundedCornerShape(6.dp))
+                    .onGloballyPositioned { coords ->
+                        onRegisterPocketBounds(coords.boundsInRoot())
+                    }
+                    .shadow(if (isPocketHovered || hasSelected || pocketCount > 0) 6.dp else 2.dp, RoundedCornerShape(6.dp))
                     .border(
-                        1.dp,
-                        if (hasSelected) Color(0xFF38BDF8) else if (pocketCount > 0) Color(0xFF0284C7) else GoldPlaqueBorder.copy(alpha = 0.5f),
+                        if (isPocketHovered) 2.dp else 1.dp,
+                        if (isPocketHovered) Color(0xFF38BDF8) else if (hasSelected) Color(0xFF38BDF8) else if (pocketCount > 0) Color(0xFF0284C7) else GoldPlaqueBorder.copy(alpha = 0.5f),
                         RoundedCornerShape(6.dp)
                     )
                     .clickable {
                         onPocketClicked()
                     }
                     .testTag("btn_action_pocket"),
-                color = if (hasSelected) Color(0xFF0C4A6E) else if (pocketCount > 0) Color(0xFF082F49) else Color(0xFF1C0D05),
+                color = if (isPocketHovered) Color(0xFF075985) else if (hasSelected) Color(0xFF0C4A6E) else if (pocketCount > 0) Color(0xFF082F49) else Color(0xFF1C0D05),
                 shape = RoundedCornerShape(6.dp)
             ) {
                 Column(
@@ -220,15 +225,15 @@ fun PlayerWoodenCardRack(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "POCKET ($pocketCount)",
-                        color = if (hasSelected || pocketCount > 0) Color.White else GoldPlaqueText,
+                        text = if (isPocketHovered) "DROP TO POCKET" else "POCKET ($pocketCount)",
+                        color = if (isPocketHovered || hasSelected || pocketCount > 0) Color.White else GoldPlaqueText,
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 0.3.sp
                     )
                     Text(
-                        text = if (hasSelected) "Tuck ${selectedCardIds.size} cards" else if (pocketCount > 0) "Tap to view" else "Empty / Open",
-                        color = if (hasSelected || pocketCount > 0) Color(0xFFBAE6FD) else GoldPlaqueText.copy(alpha = 0.7f),
+                        text = if (isPocketHovered) "Release to tuck card" else if (hasSelected) "Tuck ${selectedCardIds.size} cards" else if (pocketCount > 0) "Tap to view" else "Empty / Open",
+                        color = if (isPocketHovered || hasSelected || pocketCount > 0) Color(0xFFBAE6FD) else GoldPlaqueText.copy(alpha = 0.7f),
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Normal
                     )

@@ -3,6 +3,8 @@ package com.example.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
+import com.example.BuildConfig
 import com.example.engine.AiPlayerEngine
 import com.example.engine.DeckEngine
 import com.example.engine.MeldDetector
@@ -98,7 +100,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun startNewTournament(humanName: String = "You") {
         aiLoopJob?.cancel()
         val newState = DeckEngine.startNewGame(humanName = humanName)
-        _gameState.value = newState
+        emitGameState(newState, "startNewTournament")
         _selectedCardIds.value = emptySet()
         _roundWinner.value = null
         _isTournamentFinished.value = false
@@ -112,7 +114,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val saved = preferences.loadActiveGame()
         if (saved != null) {
             aiLoopJob?.cancel()
-            _gameState.value = saved
+            emitGameState(saved, "resumeSavedTournament")
             _selectedCardIds.value = emptySet()
             _roundWinner.value = null
             _isTournamentFinished.value = false
@@ -136,7 +138,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         val updatedPlayers = state.players.map { if (it.id == human.id) finalHuman else it }
         val newState = state.copy(players = updatedPlayers, sortMode = mode)
-        _gameState.value = newState
+        emitGameState(newState, "sortHumanHand")
         persistState(newState)
     }
 
@@ -168,7 +170,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 statusMessage = "You drew ${drawnCard.displayName} from Stock. Meld, Play On, or Discard."
             )
             _newlyReceivedCardIds.value = setOf(drawnCard.id)
-            _gameState.value = stateAfterDraw
+            emitGameState(stateAfterDraw, "onHumanDrawFromStock")
             persistState(stateAfterDraw)
         }
     }
@@ -184,7 +186,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 statusMessage = "You took ${takenCard.displayName} from Discard. Meld, Play On, or Discard."
             )
             _newlyReceivedCardIds.value = setOf(takenCard.id)
-            _gameState.value = stateAfterTake
+            emitGameState(stateAfterTake, "onHumanTakeDiscard")
             persistState(stateAfterTake)
         }
     }
@@ -211,7 +213,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             )
             val newHand = finalState.humanPlayer?.hand?.map { it.id }?.toSet() ?: emptySet()
             _newlyReceivedCardIds.value = newHand.subtract(oldHand)
-            _gameState.value = finalState
+            emitGameState(finalState, "onHumanDiscardSelectedCard")
             persistState(finalState)
             checkTurnState()
         }
@@ -233,7 +235,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 "${nextTurnPlayer.name}'s turn — Draw from Stock or Take Discard."
             }
         )
-        _gameState.value = afterPass
+        emitGameState(afterPass, "onHumanPassBuy")
         persistState(afterPass)
         checkTurnState()
     }
@@ -253,7 +255,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     "${nextTurnPlayer.name}'s turn — Draw from Stock or Take Discard."
                 }
             )
-            _gameState.value = afterPass
+            emitGameState(afterPass, "onHumanBuyDiscard_pass")
             persistState(afterPass)
             checkTurnState()
             return
@@ -264,13 +266,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (candidateBuyer.isHuman) {
             // WAIT INDEFINITELY for human to press Buy or Pass.
             val waitState = state.copy(statusMessage = "BUY PRIORITY — Your decision")
-            _gameState.value = waitState
+            emitGameState(waitState, "onHumanBuyDiscard_wait")
             return
         }
 
         // It is an AI's turn to decide on the Buy
         val waitAiState = state.copy(statusMessage = "Checking if ${candidateBuyer.name} wants to Buy...")
-        _gameState.value = waitAiState
+        emitGameState(waitAiState, "onHumanPassBuy_waitAi")
 
         viewModelScope.launch {
             delay(1000)
@@ -297,7 +299,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         "${candidateBuyer.name} bought ${currentPriority.discardCard.displayName}. ${nextTurnPlayer.name}'s turn."
                     }
                 )
-                _gameState.value = afterBuy
+                emitGameState(afterBuy, "resolvePendingBuy_buy")
                 persistState(afterBuy)
                 checkTurnState()
             } else {
@@ -309,7 +311,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         "${candidateBuyer.name} passed. ${nextTurnPlayer.name}'s turn."
                     }
                 )
-                _gameState.value = afterPass
+                emitGameState(afterPass, "resolvePendingBuy_pass")
                 persistState(afterPass)
                 checkTurnState()
             }
@@ -320,18 +322,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun onHumanDiscardSelectedCard() {
         val state = _gameState.value ?: return
         if (!state.isHumanTurn || state.currentPhase != TurnPhase.PLAY_OR_DISCARD) {
-            _gameState.value = state.copy(statusMessage = "You can only discard after drawing during your turn!")
+            emitGameState(state.copy(statusMessage = "You can only discard after drawing during your turn!"), "onHumanDiscard_statusNotTurn")
             return
         }
 
         val selectedCardId = _selectedCardIds.value.firstOrNull()
         if (selectedCardId == null) {
-            _gameState.value = state.copy(statusMessage = "Select 1 card from your rack to discard.")
+            emitGameState(state.copy(statusMessage = "Select 1 card from your rack to discard."), "onHumanDiscard_statusSelectCard")
             return
         }
         val human = state.humanPlayer ?: return
         if (state.contractLevel.noDiscard && human.hand.size == 1) {
-            _gameState.value = state.copy(statusMessage = "NO DISCARD: You must play all cards to win. You cannot discard your last card!")
+            emitGameState(state.copy(statusMessage = "NO DISCARD: You must play all cards to win. You cannot discard your last card!"), "onHumanDiscard_statusNoDiscard")
             return
         }
         
@@ -346,7 +348,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         val human = state.humanPlayer ?: return
         if (state.contractLevel.noDiscard && human.hand.size == 1) {
-            _gameState.value = state.copy(statusMessage = "NO DISCARD: You must play all cards to win. You cannot discard your last card!")
+            emitGameState(state.copy(statusMessage = "NO DISCARD: You must play all cards to win. You cannot discard your last card!"), "onHumanDiscard_statusNoDiscardLastCard")
             return
         }
         
@@ -364,7 +366,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val updatedPlayer = stateAfterDiscard.players.find { it.id == player.id }
         if (updatedPlayer != null && updatedPlayer.hand.isEmpty()) {
             if (state.contractLevel.noDiscard) {
-                _gameState.value = state.copy(statusMessage = "Level 7: You must play all cards to go out. You cannot discard your last card!")
+                emitGameState(state.copy(statusMessage = "Level 7: You must play all cards to go out. You cannot discard your last card!"), "onHumanDiscard_statusLevel7")
                 return
             }
             handleRoundWon(stateAfterDiscard, updatedPlayer)
@@ -431,7 +433,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     penaltyCard = penaltyCard,
                     isResolved = true
                 )
-                _gameState.value = updatedState
+                emitGameState(updatedState, "moveCardInRack")
                 persistState(updatedState)
                 // advanceTurn will be called in onHumanDismissRummay
                 return
@@ -512,7 +514,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 _newlyReceivedCardIds.value = setOf(penaltyCard.id)
             }
             
-            _gameState.value = updatedState
+            emitGameState(updatedState, "swapCardsInHand")
             persistState(updatedState)
             // advanceTurn will be called in onHumanDismissRummay
             
@@ -572,7 +574,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val updatedState = stateAfterRummy.copy(
             statusMessage = "You called RUMMAY! and gave ${penaltyCard.displayName} to ${currentCall.offender.name}."
         )
-        _gameState.value = updatedState
+        emitGameState(updatedState, "emptyPocket")
         persistState(updatedState)
         // advanceTurn will be called in onHumanDismissRummay
 
@@ -603,7 +605,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 pendingBuyPriority = transition.pendingBuyPriority,
                 statusMessage = status
             )
-            _gameState.value = stateWithBuy
+            emitGameState(stateWithBuy, "moveCardsToPocket")
             persistState(stateWithBuy)
             processBuyPrioritySequence()
         } else {
@@ -617,7 +619,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     "${nextPlayer.name}'s turn — Draw from Stock."
                 }
             )
-            _gameState.value = stateWithoutBuy
+            emitGameState(stateWithoutBuy, "moveCardsToHand")
             persistState(stateWithoutBuy)
             checkTurnState()
         }
@@ -648,7 +650,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val finalState = stateAfterMeld.copy(
             statusMessage = "You Went Down! Now you can Play On to any table meld or Discard."
         )
-        _gameState.value = finalState
+        emitGameState(finalState, "onConfirmGoDown")
         persistState(finalState)
     }
 
@@ -667,7 +669,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _selectedCardIds.value = emptySet()
 
         val (stateAfterWin, winner) = DeckEngine.revealLevel7Win(current, human.id, winningRuns)
-        _gameState.value = stateAfterWin
+        emitGameState(stateAfterWin, "onConfirmLevel7Win")
         _roundWinner.value = winner
         if (stateAfterWin.isTournamentOver) {
             _isTournamentFinished.value = true
@@ -696,7 +698,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             val updatedPlayers = current.players.map { if (it.id == human.id) updatedHuman else it }
             val updatedState = current.copy(players = updatedPlayers)
-            _gameState.value = updatedState
+            emitGameState(updatedState, "onLayoffToMeld")
             persistState(updatedState)
             
             _selectedCardIds.value = emptySet()
@@ -710,7 +712,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val updatedHuman = human.withPocketedCards(cardIds)
         val updatedPlayers = current.players.map { if (it.id == human.id) updatedHuman else it }
         val updatedState = current.copy(players = updatedPlayers)
-        _gameState.value = updatedState
+        emitGameState(updatedState, "onResolveJokerDestination")
         persistState(updatedState)
         _selectedCardIds.value = _selectedCardIds.value - cardIds
     }
@@ -721,7 +723,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val updatedHuman = human.withUnpocketedCards(cardIds)
         val updatedPlayers = current.players.map { if (it.id == human.id) updatedHuman else it }
         val updatedState = current.copy(players = updatedPlayers)
-        _gameState.value = updatedState
+        emitGameState(updatedState, "onCallRummay")
         persistState(updatedState)
         _selectedCardIds.value = _selectedCardIds.value - cardIds
     }
@@ -732,7 +734,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val updatedHuman = human.withEmptyPocket()
         val updatedPlayers = current.players.map { if (it.id == human.id) updatedHuman else it }
         val updatedState = current.copy(players = updatedPlayers)
-        _gameState.value = updatedState
+        emitGameState(updatedState, "onDismissRummay")
         persistState(updatedState)
     }
 
@@ -754,7 +756,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val human = state.humanPlayer ?: return
 
         if (!state.isHumanTurn || state.currentPhase != TurnPhase.PLAY_OR_DISCARD) {
-            _gameState.value = state.copy(statusMessage = "You can only Play On during your play phase!")
+            emitGameState(state.copy(statusMessage = "You can only Play On during your play phase!"), "onPlayOnSelectedCard_status")
             return
         }
 
@@ -805,7 +807,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val finalState = stateAfterPlayOn.copy(
                 statusMessage = "Played ${card.displayName} on ${targetMeld.ownerName}'s ${targetMeld.type.name}."
             )
-            _gameState.value = finalState
+            emitGameState(finalState, "onPlayOnSelectedCard_layoff")
             persistState(finalState)
         }
     }
@@ -841,7 +843,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             val finalState = stateAfterPlayOn.copy(
                 statusMessage = "Replaced Joker in ${replacementState.meld.ownerName}'s Run with ${replacementState.naturalCard.displayName}."
             )
-            _gameState.value = finalState
+            emitGameState(finalState, "onPlayOnSelectedCard_tableDrop")
             persistState(finalState)
         }
     }
@@ -853,7 +855,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val updatedHuman = DeckEngine.moveCardInRack(human, fromRow, fromSlot, toRow, toSlot)
         val updatedPlayers = state.players.map { if (it.id == human.id) updatedHuman else it }
         val newState = state.copy(players = updatedPlayers)
-        _gameState.value = newState
+        emitGameState(newState, "onMoveCardInRack")
         persistState(newState)
     }
 
@@ -861,7 +863,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun handleRoundWon(state: GameState, winner: Player) {
         val stateAfterScoring = DeckEngine.calculateEndRoundScores(state, winner.id)
         _roundWinner.value = winner
-        _gameState.value = stateAfterScoring
+        emitGameState(stateAfterScoring, "handleRoundWon_scoring")
         persistState(stateAfterScoring)
 
         if (stateAfterScoring.currentLevel >= 7) {
@@ -885,7 +887,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val nextLevel = state.currentLevel + 1
         val nextRoundState = DeckEngine.startNextLevel(state, nextLevel)
         _roundWinner.value = null
-        _gameState.value = nextRoundState
+        emitGameState(nextRoundState, "onContinueNextLevel")
         persistState(nextRoundState)
         checkTurnState()
     }
@@ -908,12 +910,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (initialState.isHumanTurn) return@launch
             
             val aiPlayer = initialState.currentPlayer
-            _gameState.value = initialState.copy(statusMessage = "${aiPlayer.name} is thinking...")
+            emitGameState(initialState.copy(statusMessage = "${aiPlayer.name} is thinking..."), "runAiTurn_thinking")
             delay(800)
             
             var currentState = _gameState.value ?: return@launch
             if (currentState.topDiscard != null) {
-                _gameState.value = currentState.copy(statusMessage = "${aiPlayer.name} is checking the discard...")
+                emitGameState(currentState.copy(statusMessage = "${aiPlayer.name} is checking the discard..."), "runAiTurn_checkDiscard")
                 delay(600)
                 currentState = _gameState.value ?: return@launch
             }
@@ -930,7 +932,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     statusMessage = "${aiPlayer.name} took ${card?.displayName} from Discard."
                 )
             } else {
-                _gameState.value = currentState.copy(statusMessage = "${aiPlayer.name} is drawing from Stock...")
+                emitGameState(currentState.copy(statusMessage = "${aiPlayer.name} is drawing from Stock..."), "runAiTurn_drawStock")
                 delay(600)
                 currentState = _gameState.value ?: return@launch
                 
@@ -940,7 +942,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     statusMessage = "${aiPlayer.name} drew a card from Stock."
                 )
             }
-            _gameState.value = currentState
+            emitGameState(currentState, "runAiTurn_drawDiscard")
             delay(800)
             currentState = _gameState.value ?: return@launch
 
@@ -950,10 +952,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 if (currentState.currentLevel == 7) {
                     val winningRuns = MeldDetector.findLevel7WinningRuns(updatedAi.hand)
                     if (winningRuns != null) {
-                        _gameState.value = currentState.copy(statusMessage = "${updatedAi.name} reveals 3 RUNS — THAT DID IT!")
+                        emitGameState(currentState.copy(statusMessage = "${updatedAi.name} reveals 3 RUNS — THAT DID IT!"), "runAiTurn_level7Win")
                         delay(1000)
                         val (stateAfterWin, winner) = DeckEngine.revealLevel7Win(currentState, updatedAi.id, winningRuns)
-                        _gameState.value = stateAfterWin
+                        emitGameState(stateAfterWin, "runAiTurn_level7WinState")
                         _roundWinner.value = winner
                         if (stateAfterWin.isTournamentOver) {
                             _isTournamentFinished.value = true
@@ -962,7 +964,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
                 } else {
-                    _gameState.value = currentState.copy(statusMessage = "${aiPlayer.name} is checking melds...")
+                    emitGameState(currentState.copy(statusMessage = "${aiPlayer.name} is checking melds..."), "runAiTurn_checkMelds")
                     delay(600)
                     currentState = _gameState.value ?: return@launch
 
@@ -977,7 +979,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         currentState = stateAfterDown.copy(
                             statusMessage = "${updatedAi.name} WENT DOWN!"
                         )
-                        _gameState.value = currentState
+                        emitGameState(currentState, "runAiTurn_meldDown")
                         updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: return@launch
                         delay(800)
                     }
@@ -992,7 +994,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 
                 if (moves.isNotEmpty()) {
-                    _gameState.value = currentState.copy(statusMessage = "${updatedAi.name} is playing...")
+                    emitGameState(currentState.copy(statusMessage = "${updatedAi.name} is playing..."), "runAiTurn_playing")
                     delay(600)
                     currentState = _gameState.value ?: return@launch
                 }
@@ -1003,7 +1005,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         currentState = stateAfterLayoff.copy(
                             statusMessage = "${updatedAi.name} played ${move.card.displayName} on a meld."
                         )
-                        _gameState.value = currentState
+                        emitGameState(currentState, "runAiTurn_layoff")
                         updatedAi = currentState.players.find { it.id == aiPlayer.id } ?: break
                         if (updatedAi.hand.isEmpty()) {
                             handleRoundWon(currentState, updatedAi)
@@ -1015,7 +1017,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // 4. DISCARD PHASE
-            _gameState.value = currentState.copy(statusMessage = "${updatedAi.name} is discarding...")
+            emitGameState(currentState.copy(statusMessage = "${updatedAi.name} is discarding..."), "runAiTurn_discarding")
             delay(600)
             currentState = _gameState.value ?: return@launch
             
@@ -1023,9 +1025,29 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (discardCard != null) {
                 executeDiscard(currentState, updatedAi, discardCard)
             } else {
-                _gameState.value = currentState.copy(statusMessage = "DEADLOCK: ${updatedAi.name} has only Jokers and cannot discard!")
+                emitGameState(currentState.copy(statusMessage = "DEADLOCK: ${updatedAi.name} has only Jokers and cannot discard!"), "runAiTurn_deadlock")
             }
         }
+    }
+
+    private fun emitGameState(newState: GameState, actionName: String = "") {
+        // Only run 108-card conservation audit when a full 108-card match is in progress
+        val totalCardsInState = newState.drawDeck.size +
+                newState.discardPile.size +
+                newState.players.sumOf { it.hand.size } +
+                newState.allTableMelds.sumOf { it.cards.size }
+
+        if (totalCardsInState == 108) {
+            val report = DeckEngine.generateIntegrityReport(newState, actionName)
+            if (!report.isValid) {
+                val errorMsg = report.formatErrorMessage()
+                Log.e("GameViewModel", errorMsg)
+                if (BuildConfig.DEBUG) {
+                    throw IllegalStateException("CARD INTEGRITY FAILURE: ${report.formatErrorMessage()}")
+                }
+            }
+        }
+        _gameState.value = newState
     }
 
     private fun persistState(state: GameState) {

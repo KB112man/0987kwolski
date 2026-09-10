@@ -11,6 +11,7 @@ sealed class DragDropTarget {
     data class TableMeld(val meldId: String) : DragDropTarget()
     data class Meld(val meldId: String) : DragDropTarget()
     data class MeldWorkspaceSlot(val slotIndex: Int) : DragDropTarget()
+    data object Pocket : DragDropTarget()
 }
 
 data class DraggedCardState(
@@ -27,6 +28,7 @@ class DragDropRegistry {
     private val slotBoundsInRows = mutableMapOf<Int, MutableMap<Int, Rect>>()
     private var discardBounds: Rect? = null
     private var stockBounds: Rect? = null
+    private var pocketBounds: Rect? = null
     private val meldBounds = mutableMapOf<String, Rect>()
 
     fun registerRow(rowIndex: Int, bounds: Rect) {
@@ -46,6 +48,10 @@ class DragDropRegistry {
         stockBounds = bounds
     }
 
+    fun registerPocket(bounds: Rect) {
+        pocketBounds = bounds
+    }
+
     fun registerMeld(meldId: String, bounds: Rect) {
         meldBounds[meldId] = bounds
     }
@@ -59,6 +65,7 @@ class DragDropRegistry {
         slotBoundsInRows.clear()
         discardBounds = null
         stockBounds = null
+        pocketBounds = null
         meldBounds.clear()
     }
 
@@ -67,6 +74,7 @@ class DragDropRegistry {
             is DragDropTarget.RackSlot -> registerSlot(target.rowIndex, target.slotIndex, bounds)
             is DragDropTarget.DiscardPile -> registerDiscardPile(bounds)
             is DragDropTarget.StockPile -> registerStockPile(bounds)
+            is DragDropTarget.Pocket -> registerPocket(bounds)
             is DragDropTarget.TableMeld -> registerMeld(target.meldId, bounds)
             is DragDropTarget.Meld -> registerMeld(target.meldId, bounds)
             is DragDropTarget.MeldWorkspaceSlot -> {}
@@ -122,6 +130,15 @@ class DragDropRegistry {
                 return DragDropTarget.StockPile
             }
         }
+
+        // 4. Check Pocket tray / button
+        pocketBounds?.let { rect ->
+            val expanded = rect.inflate(20f)
+            if (expanded.contains(position)) {
+                return DragDropTarget.Pocket
+            }
+        }
+
         return null
     }
 

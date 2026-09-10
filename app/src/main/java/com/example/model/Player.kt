@@ -224,4 +224,20 @@ data class Player(
         }
         return copy(rackRows = newRows)
     }
+
+    fun insertAndShiftCardInHand(cardId: String, targetActiveIndex: Int): Player {
+        val activeList = activeCards.toMutableList()
+        val currentIndex = activeList.indexOfFirst { it.id == cardId }
+        if (currentIndex == -1) return this
+
+        val clampedTarget = targetActiveIndex.coerceIn(0, (activeList.size - 1).coerceAtLeast(0))
+        if (currentIndex == clampedTarget) return this
+
+        val cardToMove = activeList.removeAt(currentIndex)
+        activeList.add(clampedTarget, cardToMove)
+
+        // Maintain continuous hand ordering: ordered active cards followed by pocket cards
+        val newHand = activeList + pocketCards
+        return copy(hand = newHand).reorganizeHandIntoRack()
+    }
 }

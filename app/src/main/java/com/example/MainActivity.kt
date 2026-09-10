@@ -11,16 +11,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.GameViewModel
+import com.example.ui.ReplayViewModel
 import com.example.ui.dialogs.MatchHistoryDialog
 import com.example.ui.dialogs.RulesDialog
+import com.example.ui.screens.DeckReplayScreen
 import com.example.ui.screens.GameScreen
 import com.example.ui.screens.MainMenuScreen
 import com.example.ui.theme.MyApplicationTheme
 
 enum class AppScreen {
     MAIN_MENU,
-    GAME
+    GAME,
+    DECK_REPLAY
 }
 
 class MainActivity : ComponentActivity() {
@@ -62,6 +66,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onViewRules = {
                                     showMainMenuRules = true
+                                },
+                                onOpenDeckReplay = {
+                                    currentScreen = AppScreen.DECK_REPLAY
                                 }
                             )
 
@@ -86,6 +93,19 @@ class MainActivity : ComponentActivity() {
                             GameScreen(
                                 viewModel = gameViewModel,
                                 onNavigateToMainMenu = {
+                                    currentScreen = AppScreen.MAIN_MENU
+                                }
+                            )
+                        }
+                        AppScreen.DECK_REPLAY -> {
+                            BackHandler {
+                                currentScreen = AppScreen.MAIN_MENU
+                            }
+
+                            val replayViewModel: ReplayViewModel = viewModel()
+                            DeckReplayScreen(
+                                viewModel = replayViewModel,
+                                onNavigateBack = {
                                     currentScreen = AppScreen.MAIN_MENU
                                 }
                             )

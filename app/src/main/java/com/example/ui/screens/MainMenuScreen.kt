@@ -8,9 +8,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -18,13 +19,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
+import com.example.model.ContractLevel
 import com.example.model.GameState
 import com.example.ui.theme.*
 
@@ -35,8 +34,11 @@ fun MainMenuScreen(
     onStartNewTournament: () -> Unit,
     onResumeGame: () -> Unit,
     onViewHistory: () -> Unit,
-    onViewRules: () -> Unit
+    onViewRules: () -> Unit,
+    onOpenDeckReplay: () -> Unit = {}
 ) {
+    var showAbandonDialog by remember { mutableStateOf(false) }
+
     val woodBackground = Brush.radialGradient(
         listOf(
             Color(0xFF381B09),
@@ -59,12 +61,14 @@ fun MainMenuScreen(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 440.dp)
+                .fillMaxHeight()
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // App Hero / Logo
+            // ==================================================
+            // 1. TOP SECTION: Logo + Resume Tournament (if saved exists)
+            // ==================================================
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -113,8 +117,9 @@ fun MainMenuScreen(
                 }
             }
 
-            // Resume Game Card (if saved game exists)
+            // Resume Game Card directly below logo, only when a saved tournament exists
             if (savedGameState != null) {
+                Spacer(modifier = Modifier.height(12.dp))
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -165,7 +170,7 @@ fun MainMenuScreen(
                         }
 
                         Text(
-                            text = "Contract: ${savedGameState.contractLevel.shortRequirement}",
+                            text = "Contract: ${savedGameState.contractLevel.shortRequirement} (Deal ${savedGameState.contractLevel.dealCount})",
                             color = Color(0xFFDCFCE7),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
@@ -197,7 +202,7 @@ fun MainMenuScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "RESUME MATCH",
+                                text = "RESUME TOURNAMENT",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 0.5.sp
@@ -207,56 +212,82 @@ fun MainMenuScreen(
                 }
             }
 
-            // Main Menu Action Buttons
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ==================================================
+            // 2. CENTER SECTION: Trophy Case, Deck Replay, Match History, Rules, Contract Preview
+            // ==================================================
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Trophy Case (Meta feature placeholder)
                 MenuActionButton(
-                    icon = Icons.Default.AddCircleOutline,
-                    title = "NEW TOURNAMENT",
-                    subtitle = "Start fresh from Level 1 (2 Books)",
-                    containerColor = GoldPlaqueText,
-                    contentColor = Color.Black,
-                    onClick = onStartNewTournament,
-                    testTag = "btn_new_tournament"
+                    icon = Icons.Default.EmojiEvents,
+                    title = "TROPHY CASE",
+                    subtitle = "Tournament championship accolades & feats (Coming Soon)",
+                    containerColor = Color(0xFF221106),
+                    contentColor = GoldPlaqueSubText,
+                    borderColor = Color(0xFF4A250E),
+                    enabled = false,
+                    onClick = { /* Meta feature: disabled */ },
+                    testTag = "btn_menu_trophy_case"
                 )
 
+                // Deck Replay / Cartridge
                 MenuActionButton(
-                    icon = Icons.Default.History,
-                    title = "MATCH HISTORY",
-                    subtitle = "Past championship results & standings",
+                    icon = Icons.Default.Replay,
+                    title = "DECK REPLAY / CARTRIDGE",
+                    subtitle = "Inspect seeded deck orders & public table replay",
                     containerColor = Color(0xFF261205),
                     contentColor = GoldPlaqueText,
                     borderColor = GoldPlaqueBorder.copy(alpha = 0.6f),
+                    enabled = true,
+                    onClick = onOpenDeckReplay,
+                    testTag = "btn_menu_deck_replay"
+                )
+
+                // Match History
+                MenuActionButton(
+                    icon = Icons.Default.History,
+                    title = "MATCH HISTORY",
+                    subtitle = if (hasHistory) "View past championship results & standings" else "No completed matches yet",
+                    containerColor = Color(0xFF261205),
+                    contentColor = GoldPlaqueText,
+                    borderColor = GoldPlaqueBorder.copy(alpha = 0.6f),
+                    enabled = true,
                     onClick = onViewHistory,
                     testTag = "btn_menu_history"
                 )
 
+                // Rules
                 MenuActionButton(
-                    icon = Icons.Default.MenuBook,
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
                     title = "OFFICIAL RULES",
                     subtitle = "Contracts, Buys, Going Down, Rummay!",
                     containerColor = Color(0xFF1E0E05),
                     contentColor = Color(0xFFFFF7ED),
                     borderColor = Color(0xFF5A2E0F),
+                    enabled = true,
                     onClick = onViewRules,
                     testTag = "btn_menu_rules"
                 )
             }
 
-            // 7 Contract levels summary
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Authoritative Contract / Level Preview derived dynamically from ContractLevel.entries
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .testTag("preview_contract_levels"),
                 color = Color(0xFF140702),
                 shape = RoundedCornerShape(8.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF381B09))
             ) {
                 Column(
                     modifier = Modifier.padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
                         text = "THE 7 TOURNAMENT CONTRACTS",
@@ -265,16 +296,106 @@ fun MainMenuScreen(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp
                     )
-                    Text("• Level 1: 2 Books (Deal 10)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-                    Text("• Level 2: 1 Book & 1 Run (Deal 10)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-                    Text("• Level 3: 2 Runs (Deal 10)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-                    Text("• Level 4: 3 Books (Deal 10)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-                    Text("• Level 5: 2 Books & 1 Run (Deal 12)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-                    Text("• Level 6: 1 Book & 2 Runs (Deal 12)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-                    Text("• Level 7: 3 Runs / No Discard (Deal 12)", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                    ContractLevel.entries.forEach { level ->
+                        val suffix = if (level.noDiscard) " - No Discard" else ""
+                        Text(
+                            text = "• Level ${level.levelNumber}: ${level.shortRequirement}$suffix (Deal ${level.dealCount})",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
+
+            // ==================================================
+            // PHYSICAL SEPARATION: Spacer(weight = 1f)
+            // Separates destructive action from Resume / Navigation
+            // ==================================================
+            Spacer(modifier = Modifier.weight(1f).defaultMinSize(minHeight = 24.dp))
+
+            // ==================================================
+            // 3. BOTTOM SECTION: New Tournament (with Safety Lock)
+            // ==================================================
+            MenuActionButton(
+                icon = Icons.Default.AddCircleOutline,
+                title = "NEW TOURNAMENT",
+                subtitle = "Start fresh from Level 1 (2 Books)",
+                containerColor = GoldPlaqueText,
+                contentColor = Color.Black,
+                enabled = true,
+                onClick = {
+                    if (savedGameState != null) {
+                        showAbandonDialog = true
+                    } else {
+                        onStartNewTournament()
+                    }
+                },
+                testTag = "btn_new_tournament"
+            )
         }
+    }
+
+    // Safety Lock Dialog: Abandon Confirmation
+    if (showAbandonDialog) {
+        AlertDialog(
+            onDismissRequest = { showAbandonDialog = false },
+            containerColor = Color(0xFF220E04),
+            titleContentColor = Color(0xFFFDE047),
+            textContentColor = Color(0xFFFEE2E2),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFF59E0B),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Abandon current tournament?",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 16.sp
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "Starting a new tournament will erase the current tournament progress.",
+                    fontSize = 13.sp,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAbandonDialog = false
+                        onStartNewTournament()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                    modifier = Modifier.testTag("btn_confirm_abandon_tournament")
+                ) {
+                    Text(
+                        text = "START NEW TOURNAMENT",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showAbandonDialog = false },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCBD5E1)),
+                    modifier = Modifier.testTag("btn_cancel_abandon_tournament")
+                ) {
+                    Text(
+                        text = "CANCEL",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        )
     }
 }
 
@@ -286,30 +407,37 @@ private fun MenuActionButton(
     containerColor: Color,
     contentColor: Color,
     borderColor: Color? = null,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     testTag: String
 ) {
+    val actualContainerColor = if (enabled) containerColor else containerColor.copy(alpha = 0.5f)
+    val actualContentColor = if (enabled) contentColor else contentColor.copy(alpha = 0.5f)
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .height(58.dp)
-            .shadow(4.dp, RoundedCornerShape(10.dp))
+            .shadow(if (enabled) 4.dp else 0.dp, RoundedCornerShape(10.dp))
             .border(
                 1.dp,
-                borderColor ?: Color.Transparent,
+                (borderColor ?: Color.Transparent).let { if (enabled) it else it.copy(alpha = 0.3f) },
                 RoundedCornerShape(10.dp)
             ),
-        color = containerColor,
+        color = actualContainerColor,
         shape = RoundedCornerShape(10.dp)
     ) {
         Button(
             onClick = onClick,
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(testTag),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color.Transparent,
-                contentColor = contentColor
+                contentColor = actualContentColor,
+                disabledContainerColor = Color.Transparent,
+                disabledContentColor = actualContentColor
             ),
             shape = RoundedCornerShape(10.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
@@ -322,31 +450,33 @@ private fun MenuActionButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = contentColor,
+                    tint = actualContentColor,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        color = contentColor,
+                        color = actualContentColor,
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 0.5.sp
                     )
                     Text(
                         text = subtitle,
-                        color = contentColor.copy(alpha = 0.75f),
+                        color = actualContentColor.copy(alpha = 0.75f),
                         fontSize = 9.5.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = contentColor.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
-                )
+                if (enabled) {
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = actualContentColor.copy(alpha = 0.6f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

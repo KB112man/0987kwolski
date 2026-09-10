@@ -356,6 +356,9 @@ fun GameScreen(
                                             )
                                         }
                                     }
+                                    is DragDropTarget.Pocket -> {
+                                        viewModel.moveCardsToPocket(setOf(card.id))
+                                    }
                                     else -> { /* No-op */ }
                                 }
                             }
@@ -377,6 +380,9 @@ fun GameScreen(
                         },
                         onRegisterSlotBounds = { rIdx, sIdx, rect ->
                             dragDropRegistry.registerSlot(rIdx, sIdx, rect)
+                        },
+                        onRegisterPocketBounds = { rect ->
+                            dragDropRegistry.registerPocket(rect)
                         }
                     )
                 }
